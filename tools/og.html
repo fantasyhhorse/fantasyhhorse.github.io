@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Картинка для превью ссылки — FHh</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=Jura:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* держите эти цвета такими же, как в assets/css/style.css */
+    --paper:#eedbb3; --ink:#231f20; --olive:#9b8f6d; --rust:#d9772f; --emerald:#1f6b52;
+  }
+  body{margin:0;padding:32px;background:var(--paper);color:var(--ink);
+    font:400 14px/1.6 "Jura",Consolas,monospace}
+  h1{font-family:"Jura",sans-serif;font-weight:700;font-size:20px;
+    letter-spacing:-.02em;text-transform:lowercase;margin:0 0 6px}
+  p{max-width:70ch;color:#555}
+  canvas{max-width:100%;height:auto;border:1px solid rgba(0,0,0,.2);margin:18px 0;display:block}
+  a.btn{display:inline-block;padding:12px 20px;border:1px solid var(--ink);
+    text-decoration:none;color:var(--ink)}
+  a.btn:hover{background:var(--ink);color:var(--paper)}
+  code{background:rgba(0,0,0,.06);padding:2px 5px}
+</style>
+</head>
+<body>
+
+<h1>картинка для превью ссылки</h1>
+<p>Так ссылка на сайт выглядит, когда её присылают в Telegram, VK или другом мессенджере.
+Нажмите кнопку, сохраните файл как <code>og.jpg</code> и положите его в
+<code>assets/img/</code> — путь уже прописан в <code>index.html</code>.</p>
+<p>Если поменяете палитру сайта — поправьте цвета в начале этого файла и соберите картинку заново.</p>
+
+<canvas id="cv" width="1200" height="630"></canvas>
+<a class="btn" id="dl" download="og.jpg">Скачать og.jpg</a>
+
+<script src="../assets/js/botanica.js"></script>
+<script>
+(function () {
+  var B = window.FHh.bot;
+  var cv = document.getElementById('cv');
+  var g = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+
+  function draw() {
+    var pal = B.palette();
+    g.fillStyle = 'rgb(' + pal.paper.join(',') + ')';
+    g.fillRect(0, 0, W, H);
+
+    // дуга, как в шапке сайта
+    g.strokeStyle = 'rgba(' + pal.brass.join(',') + ',0.25)';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.arc(W * .5, H * 1.5, H * 1.25, Math.PI * 1.08, Math.PI * 1.92);
+    g.stroke();
+
+    // ботаника по углам
+    var scale = Math.min(W, H) / 620;
+    [
+      { x: -W * .06, y: H * 1.26, ang: -0.13, len: .78, a: .85, tone: 'moss', detail: true, seed: 778 },
+      { x: W * 1.06, y: H * .04, ang: Math.PI + 0.2, len: .66, a: .62, tone: 'deep', detail: true, seed: 1091 },
+      { x: W * 1.04, y: H * 1.06, ang: Math.PI - 0.22, len: .48, a: .4, tone: 'warm', detail: false, seed: 1404 }
+    ].forEach(function (an) {
+      g.save();
+      g.globalAlpha = an.a;
+      B.frond(g, {
+        x: an.x, y: an.y, ang: an.ang,
+        len: Math.max(W, H) * an.len,
+        segs: an.detail ? 44 : 34,
+        curve: -0.7, curlAmt: 2.8,
+        pinna: 46 * scale, width: 5 * scale,
+        seed: an.seed, detail: an.detail, tone: an.tone
+      }, 1, 0, pal, 1);
+      g.restore();
+    });
+
+    // типографика
+    g.fillStyle = 'rgb(' + pal.ink.join(',') + ')';
+    g.font = '700 96px Jura, sans-serif';
+    g.textBaseline = 'alphabetic';
+    g.fillText('fantasy', 78, H * .48);
+    g.fillStyle = 'rgb(' + pal.moss.join(',') + ')';
+    g.fillText('handmade.', 78, H * .48 + 104);
+
+    g.fillStyle = 'rgba(' + pal.ink.join(',') + ',0.62)';
+    g.font = '400 24px Jura, sans-serif';
+    g.fillText('hobbyhorsing · витражи · хендмейд', 82, H * .48 + 168);
+
+    g.font = '400 20px Jura, sans-serif';
+    g.fillText('ручная работа · штучный тираж', 82, 84);
+
+    document.getElementById('dl').href = cv.toDataURL('image/jpeg', 0.9);
+  }
+
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  else setTimeout(draw, 400);
+})();
+</script>
+</body>
+</html>

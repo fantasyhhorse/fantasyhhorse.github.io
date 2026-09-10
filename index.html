@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FHh — мастерская Рины Киприяновой</title>
+<meta name="description" content="Витрина авторских работ: hobbyhorsing, витражи, крафтовые изделия и игрушки. Ручная работа, штучный тираж.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Jura — рунический, но мягкий: тот же геометрический строй, что в
+     паспорте хорса, и полная кириллица. Manrope — для длинных абзацев. -->
+<link href="https://fonts.googleapis.com/css2?family=Jura:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- ?v=N — версия статики: поднимите число, если правили css/js,
+     иначе у постоянных посетителей останется старая версия из кеша -->
+<link rel="stylesheet" href="assets/css/style.css?v=23">
+<!-- превью ссылки в Telegram / VK / мессенджерах -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FHh">
+<meta property="og:title" content="FHh — мастерская Рины Киприяновой">
+<meta property="og:description" content="Витрина авторских работ: hobbyhorsing, витражи, крафтовые изделия и игрушки. Ручная работа, штучный тираж.">
+<meta property="og:image" content="assets/img/og.jpg">
+<meta property="og:locale" content="ru_RU">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#eedbb3" id="themeColor">
+<!-- иконку вкладки собирает brand.js из того же вектора, что и логотип
+     в шапке: она следует за палитрой. Ссылка ниже — запасной вариант. -->
+<link rel="icon" type="image/svg+xml" href="assets/img/mascot.svg" id="favicon">
+</head>
+<body data-phase="boot">
+
+<!-- ============ ПРЕЛОАДЕР: РАСКРЫВАЮЩИЕСЯ ПАПОРОТНИКИ ============ -->
+<div id="preloader" class="pre">
+  <div class="pre__sheet"></div>
+  <canvas id="fern-canvas" class="pre__canvas"></canvas>
+  <div class="pre__hud">
+    <span class="pre__mark" id="preMark" aria-hidden="true"></span>
+    <span class="pre__label mono" data-bind="siteTagline">мастерская ручной работы</span>
+    <div class="pre__rule"><i id="loadFill"></i></div>
+    <span class="pre__num mono" id="loadNum">00</span>
+  </div>
+</div>
+
+<!-- ============ ШАПКА ============ -->
+<header class="nav" id="topbar">
+  <a class="nav__brand" href="#/" data-nav>
+    <span class="nav__mark" id="navMark" aria-hidden="true"></span>
+    <span data-bind="siteTitle">FHh</span>
+  </a>
+  <nav class="nav__links mono" id="navLinks">
+    <a href="#/" data-nav data-route="home"><span>витрина</span></a>
+    <a href="#/services" data-nav data-route="services"><span>услуги</span></a>
+    <a href="#/about" data-nav data-route="about"><span>о мастере</span></a>
+    <a href="#/contacts" data-nav data-route="contacts"><span>контакты</span></a>
+  </nav>
+  <a class="nav__tg mono" id="tgTop" href="#" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.9 4.3 18.9 19c-.2 1-.8 1.3-1.7.8l-4.6-3.4-2.2 2.1c-.3.3-.5.5-1 .5l.4-4.9 9-8.1c.4-.3-.1-.5-.6-.2L7.1 12.8 2.5 11.4c-1-.3-1-1 .2-1.5l18-6.9c.8-.3 1.5.2 1.2 1.3z"/></svg>
+    <span>написать</span>
+  </a>
+  <!-- иконка меню — цельный svg: у пустых <i> внутри <button> ширина
+       на части мобильных браузеров схлопывается, и «сэндвич» пропадал -->
+  <button class="burger" id="burger" aria-label="Меню" aria-expanded="false" aria-controls="navLinks">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <line class="burger__t" x1="3" y1="8"  x2="21" y2="8"></line>
+      <line class="burger__b" x1="3" y1="16" x2="21" y2="16"></line>
+    </svg>
+  </button>
+</header>
+
+<main id="page">
+
+<!-- ============ ГЛАВНАЯ: ГЕРОЙ + ВИТРИНА ОДНИМ ПОТОКОМ ============ -->
+<section class="view is-active" data-view="home">
+
+  <header class="hero" id="hero">
+    <canvas class="hero__botany" id="hero-botany" aria-hidden="true"></canvas>
+    <span class="hero__lineart" aria-hidden="true"></span>
+    <span class="hero__ghost" data-bind="siteTitle" aria-hidden="true">FHh</span>
+
+    <div class="hero__inner">
+      <ul class="tags">
+        <li data-bind="heroTag1">ручная работа</li>
+        <li data-bind="heroTag2">штучный тираж</li>
+        <li data-bind="heroTag3">отправка по России</li>
+      </ul>
+
+      <h1 class="hero__title">
+        <span class="ln"><span data-bind="heroLine1">fantasy</span></span>
+        <span class="ln"><span class="accent" data-bind="heroLine2">handmade.</span></span>
+      </h1>
+
+      <p class="hero__sub" data-bind="heroSub">Хоббихорсы и амуниция, витражи, игрушки и крафтовые вещи — сделанные так, будто выросли в лесу.</p>
+
+      <a class="cta hero__cta" href="#shelf" id="heroCta">
+        <span>смотреть витрину</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16m0 0-6-6m6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      </a>
+    </div>
+
+    <div class="hero__foot mono">
+      <span data-bind="heroFootL">мастерская · Рина Киприянова</span>
+      <span id="heroCount">—</span>
+    </div>
+  </header>
+
+  <!-- ---- манифест: единственный цветной блок на сайте ---- -->
+  <section class="band">
+    <span class="band__lineart" aria-hidden="true"></span>
+    <p class="band__lead mono" data-bind="bandLead">каждая работа существует в одном экземпляре</p>
+    <div class="band__text" data-bind-html="bandText"></div>
+  </section>
+
+  <!-- ---- витрина ---- -->
+  <section class="shelf" id="shelf">
+    <div class="head">
+      <h2 class="head__title">витрина<em>.</em></h2>
+      <!-- на телефоне: крупная лента или мелкая сетка -->
+      <button class="cardmode mono" data-cardmode aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect class="cardmode__a" x="3" y="3" width="8" height="8"></rect>
+          <rect class="cardmode__b" x="13" y="3" width="8" height="8"></rect>
+          <rect class="cardmode__c" x="3" y="13" width="8" height="8"></rect>
+          <rect class="cardmode__d" x="13" y="13" width="8" height="8"></rect>
+        </svg>
+        <span>сетка</span>
+      </button>
+      <div class="filters mono" id="filters"></div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <p class="grid-empty mono" id="gridEmpty" hidden>пока пусто — добавьте работы в панели управления</p>
+  </section>
+
+</section>
+
+<!-- ============ УСЛУГИ ============
+     Не витрина: здесь то, что делается вместе с человеком — аренда,
+     занятия, турниры и уже проведённые мероприятия. -->
+<section class="view view--text" data-view="services">
+  <div class="head"><h2 class="head__title">услуги<em>.</em></h2></div>
+  <div class="prose services__lead" data-bind-html="servicesLead"></div>
+  <div class="services" id="services"></div>
+  <p class="grid-empty mono" id="servicesEmpty" hidden>пока пусто — добавьте услуги в панели управления</p>
+</section>
+
+<!-- ============ О МАСТЕРЕ ============ -->
+<section class="view view--text" data-view="about">
+  <div class="head"><h2 class="head__title">о мастере<em>.</em></h2></div>
+  <div class="about">
+    <div class="about__col">
+      <div class="prose" data-bind-html="aboutText"></div>
+    </div>
+    <!-- снимки плавают сами по себе; от того, на который навели курсор,
+         соседи разбегаются. На телефоне тап разворачивает кадр по центру -->
+    <div class="drift" id="drift" aria-hidden="true"></div>
+  </div>
+</section>
+
+<!-- ============ КОНТАКТЫ ============ -->
+<section class="view view--text" data-view="contacts">
+  <div class="head"><h2 class="head__title">контакты<em>.</em></h2></div>
+  <div class="prose" data-bind-html="contactsText"></div>
+  <a class="cta" id="tgContacts" href="#" target="_blank" rel="noopener">
+    <span>написать в telegram</span>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+  </a>
+</section>
+
+</main>
+
+<footer class="foot mono">
+  <span class="foot__mark" id="footMark" aria-hidden="true"></span>
+  <span data-bind="footerNote">© FHh · Рина Киприянова</span>
+  <a class="foot__tg" id="tgFoot" href="#" target="_blank" rel="noopener">t.me</a>
+  <button class="foot__admin" id="adminOpen" title="Панель управления">·</button>
+</footer>
+
+<!-- ============ ГРУППА ТОВАРОВ: СТРАНИЦА, ПЕРЕЛИСТЫВАЮЩАЯСЯ СНИЗУ ============ -->
+<div class="gsheet" id="gsheet" aria-hidden="true">
+  <div class="gsheet__stack" id="gsheetStack"></div>
+</div>
+
+<!-- ============ КАРТОЧКА РАБОТЫ ============ -->
+<div class="sheet" id="product" aria-hidden="true">
+  <div class="sheet__scrim"></div>
+  <article class="sheet__panel">
+    <button class="sheet__close" id="prodClose" aria-label="Закрыть"><span></span><span></span></button>
+    <div class="sheet__media">
+      <div class="sheet__imgs" id="prodImgWrap"></div>
+      <div class="sheet__thumbs" id="prodThumbs"></div>
+    </div>
+    <div class="sheet__body">
+      <p class="mono sheet__cat" id="prodCat"></p>
+      <h3 class="sheet__title" id="prodTitle"></h3>
+      <div class="sheet__price"><span id="prodPrice"></span><em class="mono st" id="prodStatus"></em></div>
+      <div class="sheet__desc prose" id="prodDesc"></div>
+      <ul class="specs mono" id="prodSpecs"></ul>
+      <button class="cta cta--fill" id="buyBtn">
+        <span class="cta__label">купить в telegram</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
+      <p class="mono sheet__hint">текст заявки скопируется — останется вставить в чат</p>
+    </div>
+  </article>
+</div>
+
+<!-- ============ АДМИН ============ -->
+<div class="admin" id="admin" aria-hidden="true">
+  <div class="admin__scrim"></div>
+  <div class="admin__win">
+    <header class="admin__top">
+      <b>панель управления</b>
+      <div class="admin__tabs" id="adminTabs"></div>
+      <button class="admin__close mono" id="adminClose">закрыть</button>
+    </header>
+    <div class="admin__body" id="adminBody"></div>
+    <footer class="admin__foot">
+      <span class="mono" id="adminStatus"></span>
+      <div class="admin__footbtns">
+        <button class="btn btn--ghost" id="expBtn">Экспорт JSON</button>
+        <button class="btn btn--ghost" id="impBtn">Импорт JSON</button>
+        <button class="btn btn--solid" id="saveBtn">Сохранить</button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div class="lock" id="lock" aria-hidden="true">
+  <form class="lock__box" id="lockForm">
+    <p>вход в панель управления</p>
+    <input type="password" id="lockPass" placeholder="пароль" autocomplete="current-password">
+    <button class="btn btn--solid" type="submit">Войти</button>
+    <small id="lockErr"></small>
+  </form>
+</div>
+
+<div class="toast mono" id="toast"></div>
+<canvas id="wipe-canvas" class="wipe-canvas" aria-hidden="true"></canvas>
+
+<script src="assets/js/config.js?v=23"></script>
+<script src="assets/js/brand.js?v=23"></script>
+<script src="assets/js/store.js?v=23"></script>
+<script src="assets/js/botanica.js?v=23"></script>
+<script src="assets/js/ui.js?v=23"></script>
+<script src="assets/js/admin.js?v=23"></script>
+</body>
+</html>

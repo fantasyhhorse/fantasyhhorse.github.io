@@ -1,0 +1,1083 @@
+/* ============================================================
+   FHh — мастерская Рины Киприяновой
+   Редакционный грид + рунические подписи + один цветной блок.
+   Ботаника — акцент (прелоадер и углы героя), не обои.
+
+   ЦВЕТА НЕ ЗАШИТЫ. Пять базовых токенов (paper / ink / rust /
+   olive / emerald) и пять ролей (accent / band / badge / seal /
+   logo-ring) приходят из панели управления через inline-стиль на
+   <html>. Значения ниже — только запасной вариант, если скрипт
+   не успел отработать.
+   ============================================================ */
+
+:root{
+  /* базовые токены — палитра «Паспорт хорса» */
+  --paper:#eedbb3;
+  --ink:#231f20;
+  --rust:#d9772f;
+  --olive:#9b8f6d;
+  --emerald:#1f6b52;
+
+  /* роли: чем именно красится тот или иной элемент */
+  --accent:var(--rust);
+  --band-bg:var(--olive);
+  --badge:var(--rust);
+  --seal:var(--emerald);
+  --ok:var(--emerald);          /* «в наличии» */
+  --logo-ring:var(--olive);
+  --logo-body:var(--rust);
+  --logo-ink:var(--ink);
+
+  /* производные: смена палитры пересчитывает всё, включая тёмные темы */
+  --paper-2:color-mix(in srgb,var(--paper) 93%,var(--ink));
+  --paper-3:color-mix(in srgb,var(--paper) 86%,var(--ink));
+  --ink-soft:color-mix(in srgb,var(--ink) 62%,var(--paper));
+  --ink-mute:color-mix(in srgb,var(--ink) 38%,var(--paper));
+  --line:color-mix(in srgb,var(--ink) 18%,transparent);
+  --line-2:color-mix(in srgb,var(--ink) 32%,transparent);
+  --on-band:color-mix(in srgb,var(--paper) 94%,var(--band-bg));
+  --on-band-soft:color-mix(in srgb,var(--paper) 76%,var(--band-bg));
+
+  --gut:clamp(16px,4.2vw,72px);
+  --card-min:340px;             /* от него считается число колонок витрины */
+  --maxw:1560px;
+  --fs:1;                       /* масштаб шрифта из панели */
+  --gsheet-top:clamp(78px,10vh,108px);
+
+  --f-display:"Jura","Segoe UI",Arial,sans-serif;
+  --f-text:"Manrope","Segoe UI",Calibri,Arial,sans-serif;
+  --f-mono:"Jura","Segoe UI",Arial,sans-serif;
+  --mono-track:.09em;
+
+  --ease:cubic-bezier(.22,1,.36,1);
+  --ease-io:cubic-bezier(.76,0,.24,1);
+  --anim:1;
+}
+
+/* «спокойные» подписи: рунический строй уходит из мелких надписей,
+   акцентный шрифт заголовков задаётся отдельно в панели */
+body[data-font="clean"]{
+  --f-mono:"Manrope","Segoe UI",Calibri,Arial,sans-serif;
+  --mono-track:.04em;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scrollbar-gutter:stable}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--f-text);font-weight:400;
+  font-size:calc(15.5px * var(--fs));line-height:1.62;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+body[data-phase="boot"],body[data-phase="reveal"]{overflow:hidden;height:100%}
+body[data-phase="boot"] .nav,body[data-phase="boot"] .foot{visibility:hidden}
+img{display:block;max-width:100%}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--accent);color:var(--paper)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.mono{font-family:var(--f-mono);font-weight:500;letter-spacing:var(--mono-track)}
+
+/* фирменные фигуры как декор: красятся текущим цветом через маску */
+.mark-lineart{
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;
+  -webkit-mask-size:contain;mask-size:contain;
+  background:currentColor;display:block}
+.mark-lineart{-webkit-mask-image:url(../img/lineart.svg);mask-image:url(../img/lineart.svg)}
+
+/* ============ ПРЕЛОАДЕР ============
+   Один непрерывный ход: вайи раскрываются → раздвигаются с наездом камеры →
+   бумажный лист уезжает вверх и открывает уже стоящий на месте герой.        */
+.pre{position:fixed;inset:0;z-index:100;pointer-events:none}
+.pre__sheet{position:absolute;inset:0;background:var(--paper);
+  transform:translateY(0);transition:transform 1s .32s var(--ease-io)}
+.pre__canvas{position:absolute;inset:0;width:100%;height:100%;
+  transition:opacity .5s .3s linear}
+.pre__hud{position:absolute;left:var(--gut);right:var(--gut);bottom:clamp(26px,5vh,52px);
+  display:flex;align-items:center;gap:clamp(10px,2.4vw,26px);
+  transition:opacity .35s linear,transform .7s var(--ease)}
+.pre__mark{width:clamp(26px,4vw,40px);flex:none;opacity:0;animation:fadeIn .8s .15s forwards}
+.pre__mark svg{width:100%;height:auto;display:block}
+.pre__label{font-size:calc(11px * var(--fs));color:var(--ink-soft);white-space:nowrap;
+  opacity:0;animation:fadeIn .8s .2s forwards}
+.pre__rule{flex:1;height:1px;background:var(--line);overflow:hidden;min-width:20px}
+.pre__rule i{display:block;height:100%;width:0;background:var(--ink);
+  transition:width .4s var(--ease)}
+.pre__num{font-size:clamp(30px,7vw,88px);font-weight:300;line-height:.9;
+  letter-spacing:-.04em;font-variant-numeric:tabular-nums;
+  opacity:0;animation:fadeIn .8s .2s forwards}
+@keyframes fadeIn{to{opacity:1}}
+
+/* Состояние «заставка ушла» держится и на фазе live: иначе, как только
+   сцена загрузки заканчивается, правила перестают действовать и лист
+   съезжает обратно вниз, а счётчик и папоротники проявляются заново. */
+body[data-phase="reveal"] .pre__sheet,
+body[data-phase="live"] .pre__sheet{transform:translateY(-101%)}
+body[data-phase="reveal"] .pre__canvas,
+body[data-phase="live"] .pre__canvas{opacity:0}
+body[data-phase="reveal"] .pre__hud,
+body[data-phase="live"] .pre__hud{opacity:0;transform:translateY(26px)}
+
+/* ============ ШАПКА ============ */
+.nav{position:fixed;top:0;left:0;right:0;z-index:40;
+  display:flex;align-items:center;gap:clamp(10px,3vw,34px);
+  padding:14px var(--gut);
+  padding-top:max(14px,env(safe-area-inset-top));
+  opacity:0;transform:translateY(-12px);
+  transition:opacity .6s var(--ease),transform .7s var(--ease);
+  border-bottom:1px solid transparent}
+body[data-phase="live"] .nav{opacity:1;transform:none;transition-delay:.15s}
+/* Никакого backdrop-filter у шапки: он делает .nav содержащим блоком для
+   position:fixed потомков, и раскрытое меню начинает мерить inset:0 от
+   полоски шапки. Safari держит этот слой даже после сброса свойства,
+   поэтому фон просто сплошной. */
+.nav.is-solid{background:var(--paper);border-bottom-color:var(--line)}
+.nav__brand{display:flex;align-items:center;gap:13px;min-width:0;
+  font-family:var(--f-display);font-weight:700;font-size:calc(22px * var(--fs));
+  letter-spacing:.01em}
+.nav__mark{width:52px;height:52px;flex:none;display:block;
+  transition:transform .7s var(--ease)}
+.nav__mark svg{width:100%;height:100%;display:block}
+.nav__brand:hover .nav__mark{transform:rotate(-8deg) scale(1.12)}
+.nav__links{display:flex;gap:clamp(14px,2.4vw,30px);margin-left:auto;
+  font-size:calc(12.5px * var(--fs))}
+.nav__links a span{position:relative;display:inline-block;padding:3px 0;color:var(--ink-soft);
+  transition:color .35s}
+.nav__links a span::after{content:"";position:absolute;left:0;bottom:0;height:1px;width:100%;
+  background:currentColor;transform:scaleX(0);transform-origin:right;
+  transition:transform .5s var(--ease)}
+.nav__links a:hover span{color:var(--ink)}
+.nav__links a:hover span::after{transform:scaleX(1);transform-origin:left}
+.nav__links a.is-active span{color:var(--ink)}
+.nav__links a.is-active span::after{transform:scaleX(1)}
+.nav__tg{display:flex;align-items:center;gap:8px;font-size:calc(12px * var(--fs));
+  padding:9px 16px;border:1px solid var(--line-2);position:relative;overflow:hidden;
+  transition:color .4s var(--ease),border-color .4s}
+.nav__tg svg{width:13px;height:13px;fill:currentColor;position:relative;z-index:2}
+.nav__tg span{position:relative;z-index:2}
+.nav__tg::before{content:"";position:absolute;inset:0;background:var(--ink);
+  transform:translateY(101%);transition:transform .5s var(--ease)}
+.nav__tg:hover{color:var(--paper);border-color:var(--ink)}
+.nav__tg:hover::before{transform:none}
+
+/* сэндвич-меню: цельный svg, ширина не зависит от вложенных пустых блоков */
+.burger{display:none;width:44px;height:44px;margin:-8px -10px -8px 0;
+  align-items:center;justify-content:center;flex:none;color:var(--ink)}
+.burger svg{width:26px;height:26px;display:block;overflow:visible}
+.burger line{stroke:currentColor;stroke-width:2;stroke-linecap:round;
+  transform-origin:12px 12px;
+  transition:transform .38s var(--ease),opacity .2s}
+.nav.is-menu .burger__t{transform:translateY(4px) rotate(45deg)}
+.nav.is-menu .burger__b{transform:translateY(-4px) rotate(-45deg)}
+
+/* ============ ГЕРОЙ ============ */
+.hero{position:relative;min-height:100svh;display:flex;flex-direction:column;
+  justify-content:center;padding:clamp(96px,14vh,140px) var(--gut) clamp(56px,9vh,90px);
+  overflow:hidden}
+.hero__botany{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;
+  opacity:0;transition:opacity 1.1s .25s var(--ease)}
+body[data-phase="live"] .hero__botany{opacity:1}
+/* лайнарт головы из паспорта: водяной знак, а не картинка */
+.hero__lineart{position:absolute;right:calc(var(--gut) * -0.35);top:50%;
+  width:min(46vw,540px);height:min(78vh,640px);transform:translateY(-50%);
+  color:var(--ink);opacity:0;pointer-events:none;z-index:1;
+  -webkit-mask-image:url(../img/lineart.svg);mask-image:url(../img/lineart.svg);
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;
+  -webkit-mask-size:contain;mask-size:contain;background:currentColor;
+  transition:opacity 1.6s .5s var(--ease)}
+body[data-phase="live"] .hero__lineart{opacity:.085}
+body[data-lineart="0"] .hero__lineart,
+body[data-lineart="0"] .band__lineart{display:none}
+/* ghost-логотип: подложка, а не второй заголовок — уходит вправо и еле заметен */
+.hero__ghost{position:absolute;right:-.1em;bottom:-.2em;top:auto;transform:translateY(14px);
+  font-family:var(--f-display);font-weight:700;
+  font-size:min(26vw,32vh);line-height:.8;letter-spacing:-.05em;
+  color:color-mix(in srgb,var(--paper) 95%,var(--ink));
+  pointer-events:none;user-select:none;white-space:nowrap;z-index:0;
+  opacity:0;transition:opacity 1.3s .1s var(--ease),transform 1.5s var(--ease)}
+body[data-phase="live"] .hero__ghost{opacity:1;transform:translateY(0)}
+.hero__inner{position:relative;z-index:2;max-width:var(--maxw);width:100%;margin:0 auto}
+
+.tags{display:flex;flex-wrap:wrap;gap:6px;list-style:none;padding:0;margin:0 0 clamp(20px,4vh,40px);
+  font-family:var(--f-mono);font-weight:500;letter-spacing:var(--mono-track);
+  font-size:calc(10.5px * var(--fs));color:var(--ink-soft)}
+.tags li{border:1px solid var(--line);padding:5px 11px;
+  opacity:0;transform:translateY(10px)}
+body[data-phase="live"] .tags li{animation:rise .7s var(--ease) forwards}
+body[data-phase="live"] .tags li:nth-child(1){animation-delay:.3s}
+body[data-phase="live"] .tags li:nth-child(2){animation-delay:.36s}
+body[data-phase="live"] .tags li:nth-child(3){animation-delay:.42s}
+@keyframes rise{to{opacity:1;transform:none}}
+
+.hero__title{font-family:var(--f-display);font-weight:700;margin:0;
+  font-size:clamp(42px,10.5vw,168px);line-height:.96;letter-spacing:-.02em;
+  text-transform:lowercase}
+.hero__title .accent{color:var(--accent)}
+/* overflow:hidden нужен для выезда строки, но он же срезал хвост «y» —
+   добавляем запас снизу и убираем его отрицательным полем */
+.ln{display:block;overflow:hidden;padding-bottom:.22em;margin-bottom:-.16em}
+.ln>span{display:block;transform:translateY(108%)}
+body[data-phase="live"] .ln>span{animation:lnUp 1.05s var(--ease) forwards}
+body[data-phase="live"] .ln:nth-child(1)>span{animation-delay:.24s}
+body[data-phase="live"] .ln:nth-child(2)>span{animation-delay:.34s}
+@keyframes lnUp{to{transform:none}}
+
+.hero__sub{max-width:42ch;margin:clamp(20px,3.4vh,36px) 0 0;color:var(--ink-soft);
+  font-size:clamp(14px,1.15vw,17px);opacity:0;transform:translateY(12px)}
+body[data-phase="live"] .hero__sub{animation:rise .8s var(--ease) .52s forwards}
+
+.hero__cta{margin-top:clamp(26px,4vh,44px);opacity:0;transform:translateY(12px)}
+body[data-phase="live"] .hero__cta{animation:rise .8s var(--ease) .62s forwards}
+
+.hero__foot{position:absolute;left:var(--gut);right:var(--gut);bottom:18px;z-index:2;
+  display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  font-size:calc(10.5px * var(--fs));color:var(--ink-mute);
+  opacity:0;transition:opacity .8s .9s}
+body[data-phase="live"] .hero__foot{opacity:1}
+
+/* ============ CTA ============ */
+.cta{display:inline-flex;align-items:center;gap:12px;
+  font-family:var(--f-mono);font-weight:500;font-size:calc(12px * var(--fs));
+  letter-spacing:var(--mono-track);
+  padding:15px 26px;border:1px solid var(--ink);position:relative;overflow:hidden;
+  min-height:48px;
+  /* матовое стекло: кнопка читается поверх ботаники, но не глушит её */
+  background:color-mix(in srgb,var(--paper) 55%,transparent);
+  -webkit-backdrop-filter:blur(10px) saturate(125%);
+  backdrop-filter:blur(10px) saturate(125%);
+  box-shadow:inset 0 1px 0 color-mix(in srgb,var(--paper) 65%,transparent);
+  transition:color .45s var(--ease),border-color .45s,background .45s}
+.cta svg{width:15px;height:15px;position:relative;z-index:2;
+  transition:transform .5s var(--ease)}
+.cta>span{position:relative;z-index:2}
+.cta::before{content:"";position:absolute;inset:0;background:var(--ink);
+  transform:translateY(101%);transition:transform .5s var(--ease)}
+.cta:hover{color:var(--paper)}
+.cta:hover::before{transform:none}
+.hero__cta:hover svg{transform:translateY(4px)}
+.cta--fill{width:100%;justify-content:space-between;background:var(--ink);color:var(--paper);
+  margin-top:26px;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
+.cta--fill::before{background:var(--accent)}
+.cta--fill:hover{border-color:var(--accent)}
+.cta[disabled]{opacity:.4;pointer-events:none}
+
+/* ============ ЦВЕТНОЙ БЛОК-МАНИФЕСТ ============ */
+.band{position:relative;overflow:hidden;background:var(--band-bg);color:var(--on-band);
+  padding:clamp(46px,9vw,120px) var(--gut);
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);
+  gap:clamp(24px,5vw,90px);align-items:start}
+.band__lineart{position:absolute;right:-4%;top:-18%;width:min(40vw,420px);height:136%;
+  color:var(--paper);opacity:.09;pointer-events:none;
+  -webkit-mask-image:url(../img/lineart.svg);mask-image:url(../img/lineart.svg);
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;
+  -webkit-mask-size:contain;mask-size:contain;background:currentColor}
+/* водяной знак должен остаться вне потока: правило ниже делало его
+   обычной ячейкой сетки, и крупная строка съезжала во вторую колонку */
+.band>*:not(.band__lineart){position:relative;z-index:1}
+.band__lead{font-size:clamp(16px,2.2vw,26px);line-height:1.35;margin:0;
+  color:var(--on-band)}
+.band__text{font-size:calc(13.8px * var(--fs));line-height:1.75;
+  color:var(--on-band-soft);
+  columns:2;column-gap:clamp(20px,3vw,54px)}
+.band__text p{margin:0 0 1em}
+
+/* ============ ЗАГОЛОВКИ РАЗДЕЛОВ ============ */
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;
+  flex-wrap:wrap;padding:clamp(52px,9vw,110px) var(--gut) clamp(20px,3vw,34px)}
+.head__title{font-family:var(--f-display);font-weight:700;margin:0;
+  font-size:clamp(30px,5.6vw,74px);line-height:1;letter-spacing:-.02em;
+  text-transform:lowercase}
+.head__title em{font-style:normal;color:var(--accent)}
+
+/* ---- переключатель групп товаров ---- */
+/* переключатель «лента / сетка» — только для телефона */
+.cardmode{display:none;align-items:center;gap:8px;
+  padding:9px 14px;min-height:42px;border:1px solid var(--line-2);
+  font-size:calc(11.5px * var(--fs));color:var(--ink-soft);
+  transition:color .3s,border-color .3s,background .3s}
+.cardmode svg{width:15px;height:15px;fill:currentColor}
+.cardmode svg rect{transition:x .3s var(--ease),width .3s var(--ease)}
+.cardmode[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+/* в режиме сетки иконка складывается в две широкие полосы — это «лента» */
+.cardmode[aria-pressed="true"] svg rect{x:3;width:18}
+
+.filters{display:flex;gap:6px;flex-wrap:wrap;font-size:calc(11.5px * var(--fs))}
+.filters button{padding:10px 16px;border:1px solid var(--line);color:var(--ink-soft);
+  position:relative;overflow:hidden;min-height:42px;
+  display:inline-flex;align-items:center;gap:8px;
+  transition:color .35s,border-color .35s}
+.filters button span{position:relative;z-index:2}
+.filters button i{position:relative;z-index:2;font-style:normal;opacity:.55;
+  font-size:.85em}
+.filters button::before{content:"";position:absolute;inset:0;background:var(--ink);
+  transform:translateY(101%);transition:transform .4s var(--ease)}
+.filters button:hover{color:var(--ink);border-color:var(--line-2)}
+.filters button.is-on{color:var(--paper);border-color:var(--ink)}
+.filters button.is-on::before{transform:none}
+.filters button[data-cat="all"].is-on{border-color:var(--accent)}
+.filters button[data-cat="all"].is-on::before{background:var(--accent)}
+
+/* ============ ВИТРИНА ============
+   Разделители нарисованы фоном сетки: любое число колонок даёт ровные
+   хайрлайны без пересчёта nth-child. */
+.grid{display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--card-min)),1fr));
+  gap:1px;background:var(--line);
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.grid:empty{border-bottom:0}
+.grid-empty{display:flex;align-items:center;gap:16px;
+  padding:60px var(--gut) 120px;color:var(--ink-soft);font-size:calc(12px * var(--fs))}
+/* без этого display:flex перебивает атрибут hidden и подпись висит
+   под заполненной витриной */
+.grid-empty[hidden]{display:none}
+.grid-empty i{width:44px;flex:none;opacity:.5}
+.grid-empty i svg{width:100%;height:auto;display:block}
+
+.card{position:relative;cursor:pointer;background:var(--paper);
+  opacity:0;transform:translateY(26px);
+  transition:opacity .7s var(--ease),transform .7s var(--ease)}
+.card.is-in{opacity:1;transform:none}
+.card.is-out{opacity:0;transform:translateY(-10px);transition-duration:.3s}
+
+.card__media{position:relative;width:100%;overflow:hidden;background:var(--paper-2);
+  /* ширина задана явно: иначе браузер выводит её из max-height по пропорции
+     и кадр съезжает внутри ячейки. Высоту меряем малым вьюпортом — с vh
+     на iOS кадр перекраивался каждый раз, когда прячется адресная строка */
+  aspect-ratio:4/5;max-height:min(64vh,720px);max-height:min(64svh,720px)}
+.card__img{width:100%;height:100%;object-fit:cover;display:block;background:var(--paper-2);
+  transition:transform 1.2s var(--ease),opacity .5s;will-change:transform}
+.card:hover .card__img{transform:scale(1.045)}
+/* вырезанное изображение (прозрачный фон) — целиком и на ботанической подложке */
+.card__img.is-cutout{object-fit:contain;padding:7%;
+  background-size:cover;background-position:center;background-repeat:no-repeat}
+/* значок «это видео» на обложке */
+.card__play{position:absolute;right:10px;bottom:10px;z-index:3;
+  width:30px;height:30px;border-radius:50%;
+  background:color-mix(in srgb,var(--ink) 62%,transparent);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  transition:background .3s,transform .4s var(--ease)}
+.card__play::after{content:"";position:absolute;left:52%;top:50%;
+  transform:translate(-50%,-50%);
+  border-left:9px solid var(--paper);border-top:6px solid transparent;
+  border-bottom:6px solid transparent}
+.card:hover .card__play{background:var(--accent);transform:scale(1.08)}
+.card__over{position:absolute;inset:0;display:grid;place-content:center;gap:10px;
+  text-align:center;color:var(--paper);
+  background:color-mix(in srgb,var(--ink) 30%,transparent);
+  opacity:0;transition:opacity .45s var(--ease)}
+.card:hover .card__over{opacity:1}
+.card__over b{font-family:var(--f-mono);font-weight:500;font-size:calc(11.5px * var(--fs));
+  letter-spacing:var(--mono-track);
+  border:1px solid color-mix(in srgb,var(--paper) 60%,transparent);padding:8px 16px;
+  transform:translateY(8px);transition:transform .5s var(--ease)}
+.card:hover .card__over b{transform:none}
+.card__badge{position:absolute;top:0;left:0;z-index:3;
+  font-family:var(--f-mono);font-weight:600;letter-spacing:var(--mono-track);
+  font-size:calc(13px * var(--fs));padding:9px 17px;
+  background:var(--ink);color:var(--paper)}
+.card__badge--order{background:var(--badge)}
+.card__badge--ok{background:var(--ok);color:var(--paper);
+  letter-spacing:.08em}
+
+.card__cap{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;
+  padding:14px clamp(12px,1.4vw,20px) 18px}
+.card__name{font-family:var(--f-display);font-weight:600;font-size:calc(15.5px * var(--fs));
+  line-height:1.25;letter-spacing:-.005em;margin:0}
+.card__cat{font-family:var(--f-mono);font-weight:500;letter-spacing:var(--mono-track);
+  font-size:calc(10px * var(--fs));color:var(--ink-mute);margin:5px 0 0}
+.card__pricebox{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
+.card__price{font-family:var(--f-mono);font-weight:500;font-size:calc(13px * var(--fs));
+  white-space:nowrap;font-variant-numeric:tabular-nums}
+.card__price s{color:var(--ink-mute);margin-right:6px}
+
+/* дубль статуса рядом с ценником: на обложке плашка, здесь — подпись */
+.st{display:inline-block;font-family:var(--f-mono);font-weight:500;
+  font-size:calc(9.5px * var(--fs));letter-spacing:.08em;text-transform:lowercase;
+  padding:4px 9px;border:1px solid currentColor;white-space:nowrap;line-height:1}
+.st--sold{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.st--order{background:var(--badge);border-color:var(--badge);color:var(--paper)}
+.st--available{color:var(--ink-mute);border-color:var(--line-2)}
+
+@media (min-width:1560px){ :root{--card-min:360px} }
+
+/* ============ ТЕКСТОВЫЕ СТРАНИЦЫ ============ */
+.view{display:none}
+.view.is-active{display:block}
+.view--text.is-active{animation:viewIn .65s var(--ease) both}
+@keyframes viewIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.view--text{padding-bottom:clamp(70px,12vw,150px)}
+.view--text .head{padding-top:clamp(110px,16vw,200px)}
+/* на «о мастере» шапку раздела поджимаем: иначе лента фотографий
+   начинается ниже сгиба и её приходится доскролливать */
+.view[data-view="about"] .head{padding-top:clamp(92px,10vw,124px);
+  padding-bottom:clamp(12px,1.6vw,20px)}
+.view--text>.prose,.view--text>.cta{margin-left:var(--gut);margin-right:var(--gut)}
+.prose{max-width:62ch;color:var(--ink-soft);font-size:calc(15.5px * var(--fs))}
+.prose p{margin:0 0 1.15em}
+.prose h3{font-family:var(--f-display);font-weight:600;color:var(--ink);
+  font-size:calc(18px * var(--fs));letter-spacing:0;margin:2em 0 .6em;text-transform:lowercase}
+.prose a{color:var(--accent);border-bottom:1px solid var(--line)}
+.prose ul{padding-left:1.1em;margin:0 0 1.15em}
+
+/* ---- услуги: широкие строки с фото, ценой и слотами ---- */
+.services__lead{max-width:70ch;margin:0 var(--gut) clamp(18px,3vw,34px)}
+.services{padding:0 var(--gut)}
+.svc{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);
+  gap:clamp(18px,3vw,48px);align-items:start;
+  padding:clamp(26px,4vw,52px) 0;border-top:1px solid var(--line)}
+.svc:last-child{border-bottom:1px solid var(--line)}
+.svc__media{position:relative;overflow:hidden;background:var(--paper-2);
+  aspect-ratio:4/3}
+.svc__media img,.svc__media video{width:100%;height:100%;object-fit:cover;
+  display:block;cursor:zoom-in;transition:transform 1s var(--ease)}
+.svc__media:hover img{transform:scale(1.03)}
+/* услуга без фотографии: заставка вместо пустого места, без курсора-лупы */
+.svc__media.is-empty img{cursor:default}
+.svc__media.is-empty:hover img{transform:none}
+.svc__thumbs{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
+.svc__thumbs:empty{display:none}
+.svc__thumbs button{width:58px;aspect-ratio:1;overflow:hidden;opacity:.45;
+  transition:opacity .3s}
+.svc__thumbs button img,.svc__thumbs button video{width:100%;height:100%;object-fit:cover}
+.svc__thumbs button.is-on,.svc__thumbs button:hover{opacity:1}
+.svc__kicker{font-family:var(--f-mono);font-weight:500;letter-spacing:var(--mono-track);
+  font-size:calc(10.5px * var(--fs));color:var(--accent);margin:0 0 10px;
+  text-transform:lowercase}
+.svc__title{font-family:var(--f-display);font-weight:700;margin:0 0 14px;
+  font-size:clamp(21px,2.6vw,34px);line-height:1.12;letter-spacing:-.02em;
+  text-transform:lowercase}
+.svc__price{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  font-family:var(--f-mono);font-weight:500;font-size:calc(19px * var(--fs));
+  font-variant-numeric:tabular-nums;margin-bottom:6px}
+.svc__note{font-family:var(--f-mono);font-size:calc(10.5px * var(--fs));
+  color:var(--ink-mute);margin:0 0 18px}
+.svc__desc{max-width:62ch}
+.st--open{background:var(--ok);border-color:var(--ok);color:var(--paper)}
+.st--closed{color:var(--ink-mute);border-color:var(--line-2)}
+
+.slots{list-style:none;padding:0;margin:20px 0 0;
+  font-size:calc(12px * var(--fs))}
+.slots__h{font-family:var(--f-mono);font-weight:500;letter-spacing:var(--mono-track);
+  font-size:calc(10.5px * var(--fs));color:var(--ink-soft);margin:22px 0 6px}
+.slot{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+  padding:10px 0;border-bottom:1px solid var(--line)}
+.slot b{font-weight:500;font-family:var(--f-mono);white-space:nowrap}
+.slot span{color:var(--ink-soft);flex:1}
+.slot em{font-style:normal;font-family:var(--f-mono);
+  font-size:calc(10.5px * var(--fs));white-space:nowrap;
+  color:var(--ok)}
+.slot em.is-none{color:var(--ink-mute)}
+.svc .cta{margin-top:24px}
+
+@media (max-width:820px){
+  .svc{grid-template-columns:minmax(0,1fr);gap:16px}
+  .svc__media{aspect-ratio:16/10}
+}
+
+/* ---- «о мастере»: текст слева, дрейфующие фотографии справа ---- */
+/* на очень широком экране (или при сильном отдалении) раздел не должен
+   растягиваться бесконечно — иначе поле ленты становится огромным */
+.about{display:grid;grid-template-columns:minmax(0,.82fr) minmax(0,1.38fr);
+  gap:clamp(24px,4vw,52px);align-items:start;padding:0 var(--gut);
+  max-width:calc(var(--maxw) + var(--gut) * 2);margin:0 auto}
+.about__col{position:relative;z-index:1}
+/* лента может плавать и слева от текста — переключается в панели */
+.about.is-left{grid-template-columns:minmax(0,1.38fr) minmax(0,.82fr)}
+.about.is-left .about__col{order:2}
+.about.is-left .drift{order:1}
+
+/* Поле, по которому плавают снимки. Координаты считает ui.js: у каждого
+   кадра своя скорость, борта отбивают, центральный кадр обходят, а от
+   того, на который навели курсор, остальные разбегаются. */
+.drift{position:relative;width:100%;min-width:0;
+  height:min(78vh,720px);height:min(78svh,720px);min-height:320px;
+  touch-action:manipulation}
+.drift__ph{position:absolute;left:0;top:0;width:120px;
+  overflow:hidden;background:var(--paper-2);cursor:pointer;
+  user-select:none;-webkit-user-select:none;
+  box-shadow:0 10px 32px -18px color-mix(in srgb,var(--ink) 60%,transparent);
+  transition:box-shadow .4s var(--ease);
+  will-change:transform;backface-visibility:hidden}
+/* браузер не должен утаскивать саму картинку по клику */
+.drift__ph img,.drift__ph video{width:100%;height:auto;display:block;
+  -webkit-user-drag:none;pointer-events:none}
+.drift__ph.is-center{z-index:2;
+  box-shadow:0 22px 60px -24px color-mix(in srgb,var(--ink) 68%,transparent)}
+.drift__ph.is-near{z-index:5;
+  box-shadow:0 26px 56px -22px color-mix(in srgb,var(--ink) 72%,transparent)}
+
+/* телефон: тап разворачивает кадр по центру экрана, остальные плывут дальше */
+.drift__scrim{position:fixed;inset:0;z-index:70;
+  background:color-mix(in srgb,var(--ink) 68%,transparent);
+  opacity:0;pointer-events:none;transition:opacity .35s}
+.drift__scrim.is-on{opacity:1;pointer-events:auto}
+.drift__ph.is-dim{opacity:.2}
+/* Раскрытый кадр показывается отдельным слоем прямо в <body>: внутри
+   секции он попадал в её контекст наложения — затемнение накрывало его
+   целиком, а position:fixed считался от анимированного предка. */
+.drift__zoom{position:fixed;left:50%;top:50%;z-index:71;
+  width:min(94vw,760px);
+  transform:translate(-50%,-50%);
+  background:var(--paper-2);overflow:hidden;touch-action:none;
+  box-shadow:0 30px 80px -24px color-mix(in srgb,var(--ink) 82%,transparent);
+  animation:focusIn .34s var(--ease)}
+.drift__zoom img,.drift__zoom video{display:block;width:100%;height:auto;
+  max-height:82vh;max-height:82svh;object-fit:contain;
+  transform-origin:center center;will-change:transform;
+  transition:transform .28s var(--ease)}
+.drift__zoom.is-panning img{transition:none}
+.drift__zoomclose{position:absolute;top:8px;right:8px;z-index:2;
+  width:40px;height:40px;display:grid;place-items:center;
+  color:var(--paper);background:color-mix(in srgb,var(--ink) 62%,transparent);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  transition:background .3s}
+.drift__zoomclose:hover{background:var(--accent)}
+.drift__zoomclose svg{width:16px;height:16px;fill:none;stroke:currentColor;
+  stroke-width:2.2;stroke-linecap:round}
+.drift__zoomhint{position:absolute;left:0;right:0;bottom:0;z-index:2;
+  text-align:center;padding:8px 10px;font-family:var(--f-mono);
+  font-size:calc(10px * var(--fs));letter-spacing:.06em;
+  color:var(--paper);background:color-mix(in srgb,var(--ink) 46%,transparent);
+  pointer-events:none;transition:opacity .3s}
+.drift__zoom.is-zoomed .drift__zoomhint{opacity:0}
+@keyframes focusIn{
+  from{opacity:.3;transform:translate(-50%,-50%) scale(.88)}
+  to{opacity:1;transform:translate(-50%,-50%) scale(1)}
+}
+
+/* ============ ПОДВАЛ ============ */
+.foot{display:flex;align-items:center;gap:12px;
+  padding:20px var(--gut);padding-bottom:max(20px,env(safe-area-inset-bottom));
+  border-top:1px solid var(--line);flex-wrap:wrap;
+  font-size:calc(10.5px * var(--fs));color:var(--ink-mute)}
+.foot__mark{width:20px;flex:none;opacity:.7}
+.foot__mark svg{width:100%;height:auto;display:block}
+.foot__tg{margin-left:auto;border-bottom:1px solid var(--line)}
+.foot__tg:hover{color:var(--ink)}
+.foot__admin{width:26px;height:26px;border-radius:50%;color:var(--line-2);
+  transition:color .3s,background .3s}
+.foot__admin:hover{color:var(--paper);background:var(--accent)}
+
+/* ============ ГРУППА ТОВАРОВ: СТРАНИЦА СНИЗУ ============
+   Выезжает вверх и оставляет зазор сверху, чтобы было видно, что мы
+   всё ещё на сайте. Новая группа перелистывается поверх старой.        */
+.gsheet{position:fixed;inset:0;z-index:55;visibility:hidden}
+.gsheet.is-open{visibility:visible}
+.gsheet__scrim{position:absolute;inset:0;
+  background:color-mix(in srgb,var(--ink) 46%,transparent);
+  opacity:0;transition:opacity .5s var(--ease)}
+.gsheet.is-open .gsheet__scrim{opacity:1}
+.gsheet__stack{position:absolute;left:0;right:0;bottom:0;top:var(--gsheet-top);
+  overflow:hidden}
+
+.gpanel{position:absolute;inset:0;background:var(--paper);
+  display:flex;flex-direction:column;overflow:hidden;
+  border-top:1px solid var(--line-2);
+  box-shadow:0 -26px 60px -24px color-mix(in srgb,var(--ink) 65%,transparent);
+  transform:translateY(100%);opacity:1;
+  transition:transform .74s var(--ease),opacity .45s linear;
+  will-change:transform}
+.gpanel.is-up{transform:none}
+/* уходящая группа не «выпадает», а тихо гаснет позади новой */
+.gpanel.is-under{opacity:0;transform:translateY(-1.5%) scale(.99);
+  transition:opacity .45s .08s linear,transform .6s var(--ease)}
+/* полоска-ручка: за неё группу стягивают вниз пальцем */
+.gpanel__handle{position:absolute;left:0;right:0;top:0;height:34px;z-index:3;
+  display:flex;align-items:center;justify-content:center;
+  touch-action:none;cursor:grab;-webkit-tap-highlight-color:transparent}
+.gpanel__handle:active{cursor:grabbing}
+.gpanel__grip{width:48px;height:4px;background:var(--line-2);border-radius:4px;
+  transition:background .25s,width .25s}
+.gpanel__handle:hover .gpanel__grip{background:var(--ink-mute)}
+.gpanel.is-dragging{transition:none}
+.gpanel.is-dragging .gpanel__grip{background:var(--accent);width:64px}
+
+.gpanel__close{position:absolute;top:14px;right:var(--gut);z-index:4;
+  display:inline-flex;align-items:center;gap:9px;
+  font-family:var(--f-mono);font-weight:600;letter-spacing:var(--mono-track);
+  font-size:calc(11.5px * var(--fs));text-transform:lowercase;
+  padding:11px 16px;min-height:44px;
+  /* выход из группы должен быть заметен сразу — поэтому акцентный цвет */
+  color:var(--paper);background:var(--accent);
+  border:1px solid var(--accent);
+  box-shadow:0 8px 20px -10px color-mix(in srgb,var(--ink) 70%,transparent);
+  transition:background .35s,border-color .35s,transform .4s var(--ease)}
+.gpanel__close svg{width:15px;height:15px;stroke:currentColor;stroke-width:2.4;
+  stroke-linecap:round;fill:none}
+.gpanel__close:hover{background:var(--ink);border-color:var(--ink)}
+.gpanel__close:active{transform:scale(.96)}
+
+.gpanel__inner{flex:1;overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch}
+.gpanel__head{position:relative;padding:clamp(34px,5vw,60px) var(--gut) clamp(18px,2.6vw,30px)}
+.gpanel__kicker{font-size:calc(10.5px * var(--fs));color:var(--accent);margin:0 0 10px;
+  text-transform:lowercase}
+.gpanel__title{font-family:var(--f-display);font-weight:700;margin:0;
+  font-size:clamp(28px,5.2vw,68px);line-height:1;letter-spacing:-.02em}
+.gpanel__title em{font-style:normal;color:var(--accent)}
+.gpanel__note{max-width:60ch;margin:14px 0 0;color:var(--ink-soft);
+  font-size:calc(14px * var(--fs))}
+.gpanel__subs{display:flex;gap:6px;flex-wrap:wrap;margin:22px 0 0;
+  font-size:calc(11.5px * var(--fs))}
+.gpanel__subs button{padding:9px 14px;border:1px solid var(--line);color:var(--ink-soft);
+  min-height:40px;transition:color .3s,border-color .3s,background .3s}
+.gpanel__subs button:hover{color:var(--ink);border-color:var(--line-2)}
+.gpanel__subs button.is-on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.gpanel .cardmode{margin:22px 0 0}
+.gpanel__subs + .cardmode{margin-top:10px}
+.gpanel__empty{padding:40px var(--gut) 80px;color:var(--ink-soft);
+  font-size:calc(12px * var(--fs))}
+body.is-gsheet{overflow:hidden}
+
+/* ============ КАРТОЧКА РАБОТЫ ============ */
+.sheet{position:fixed;inset:0;z-index:60;visibility:hidden;
+  height:100vh;height:100svh}
+.sheet.is-open{visibility:visible}
+.sheet__scrim{position:absolute;inset:0;background:color-mix(in srgb,var(--ink) 62%,transparent);
+  opacity:0;transition:opacity .45s var(--ease)}
+.sheet.is-open .sheet__scrim{opacity:1}
+.sheet__panel{position:absolute;top:0;right:0;bottom:0;width:min(1180px,95vw);
+  background:var(--paper);display:grid;grid-template-columns:1.2fr .8fr;
+  transform:translateX(100%);transition:transform .7s var(--ease);
+  overflow:hidden;will-change:transform}
+.sheet.is-open .sheet__panel{transform:none}
+.sheet__close{position:absolute;top:16px;right:16px;z-index:5;width:44px;height:44px;
+  border:1px solid var(--line-2);display:grid;place-items:center;
+  background:color-mix(in srgb,var(--paper) 70%,transparent);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  transition:background .35s,border-color .35s,transform .5s var(--ease)}
+.sheet__close span{position:absolute;width:14px;height:1.6px;background:var(--ink);transition:background .35s}
+.sheet__close span:first-child{transform:rotate(45deg)}
+.sheet__close span:last-child{transform:rotate(-45deg)}
+.sheet__close:hover{background:var(--ink);border-color:var(--ink);transform:rotate(90deg)}
+.sheet__close:hover span{background:var(--paper)}
+.sheet__media{position:relative;background:var(--paper-2);display:flex;flex-direction:column;
+  min-height:0;min-width:0}
+.sheet__imgs{flex:1;position:relative;overflow:hidden;min-height:0;
+  touch-action:pan-y;-webkit-user-select:none;user-select:none}
+/* кадр вписывается целиком: раньше cover срезал у высоких снимков
+   половину, а у вырезанных вдобавок менялся object-fit — и при
+   переключении миниатюр главный кадр «прыгал» в размере */
+.sheet__imgs img,.sheet__imgs video{position:absolute;inset:0;width:100%;height:100%;
+  object-fit:contain;background:var(--paper-2);cursor:zoom-in;
+  opacity:0;transform:scale(1.04);transition:opacity .6s var(--ease),transform 1s var(--ease)}
+.sheet__imgs img.is-on,.sheet__imgs video.is-on{opacity:1;transform:none}
+.sheet__imgs video{background:var(--ink)}
+.sheet__imgs img.is-cutout{padding:6%;
+  background-size:cover;background-position:center;background-repeat:no-repeat}
+/* Полоса миниатюр повторяет сетку витрины: равные ячейки встык,
+   разделённые волосяной линией. Неактивные кадры раньше гасились
+   прозрачностью — сквозь них просвечивала бумага, и лента казалась
+   дырявой; теперь поверх ложится вуаль, а сам кадр закрывает ячейку
+   целиком. Больше восьми кадров — полоса прокручивается вбок,
+   иначе миниатюры выродились бы в щепки. */
+.sheet__thumbs{display:grid;grid-auto-flow:column;
+  grid-auto-columns:minmax(44px,1fr);gap:1px;background:var(--line);flex:none;
+  min-width:0;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
+.sheet__thumbs::-webkit-scrollbar{display:none}
+.sheet__thumbs:empty{display:none}
+/* width:100% обязателен: без него ячейка считает ширину из пропорции и
+   упирается в потолок высоты — при двух кадрах полоса не дотягивалась
+   до края и справа оставалась пустая бумага */
+.sheet__thumbs button{position:relative;width:100%;aspect-ratio:1;overflow:hidden;
+  min-width:0;max-height:88px;background:var(--paper-2)}
+.sheet__thumbs button::after{content:"";position:absolute;inset:0;z-index:1;
+  background:color-mix(in srgb,var(--paper) 55%,transparent);
+  transition:opacity .35s}
+.sheet__thumbs button.is-on::after,.sheet__thumbs button:hover::after{opacity:0}
+.sheet__thumbs button img,.sheet__thumbs button video{position:absolute;inset:0;
+  width:100%;height:100%;object-fit:cover;display:block}
+.sheet__thumbs button.is-video::before{content:"";position:absolute;left:50%;top:50%;
+  z-index:2;transform:translate(-50%,-50%);
+  border-left:9px solid var(--paper);border-top:6px solid transparent;
+  border-bottom:6px solid transparent;
+  filter:drop-shadow(0 0 3px color-mix(in srgb,var(--ink) 80%,transparent))}
+
+.sheet__body{padding:clamp(24px,3.4vw,58px);overflow-y:auto;display:flex;flex-direction:column;
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  padding-bottom:max(clamp(24px,3.4vw,58px),env(safe-area-inset-bottom))}
+.sheet__cat{font-size:calc(10.5px * var(--fs));color:var(--accent);margin:0 0 16px}
+.sheet__title{font-family:var(--f-display);font-weight:700;
+  font-size:clamp(22px,2.3vw,34px);line-height:1.14;letter-spacing:-.015em;
+  margin:0 0 20px;text-transform:lowercase}
+.sheet__price{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  font-family:var(--f-mono);font-weight:500;font-size:calc(22px * var(--fs));
+  font-variant-numeric:tabular-nums;
+  padding-bottom:20px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.specs{list-style:none;padding:0;margin:22px 0 0;font-size:calc(11.5px * var(--fs));
+  color:var(--ink-soft)}
+.specs li{display:flex;justify-content:space-between;gap:20px;
+  padding:10px 0;border-bottom:1px solid var(--line)}
+.specs li b{font-weight:500;color:var(--ink)}
+.sheet__hint{font-size:calc(10.5px * var(--fs));color:var(--ink-mute);text-align:center;margin:12px 0 0}
+.sheet__stagger>*{opacity:0;transform:translateY(14px)}
+.sheet.is-open .sheet__stagger>*{animation:rise .7s var(--ease) forwards}
+
+/* ============ ТОСТ / ЗАНАВЕС ============ */
+.toast{position:fixed;left:50%;bottom:30px;transform:translate(-50%,18px);z-index:96;
+  background:var(--ink);color:var(--paper);font-size:calc(11.5px * var(--fs));
+  padding:12px 20px;opacity:0;pointer-events:none;max-width:calc(100vw - 32px);
+  text-align:center;
+  transition:opacity .35s,transform .45s var(--ease)}
+.toast.is-on{opacity:1;transform:translate(-50%,0)}
+.wipe-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:80;pointer-events:none;
+  opacity:0;visibility:hidden}
+.wipe-canvas.is-on{opacity:1;visibility:visible}
+
+/* ============ ЗАМОК ============ */
+.lock{position:fixed;inset:0;z-index:95;display:none;place-items:center;padding:16px;
+  background:color-mix(in srgb,var(--ink) 66%,transparent)}
+.lock.is-open{display:grid}
+.lock__box{background:var(--paper);padding:30px;width:min(380px,94vw);
+  display:flex;flex-direction:column;gap:13px}
+.lock__box p{margin:0;font-family:var(--f-display);font-weight:600;font-size:calc(16px * var(--fs));
+  letter-spacing:0}
+.lock__box input{padding:13px;border:1px solid var(--line);background:transparent;
+  font:inherit;font-size:16px;outline:none}
+.lock__box input:focus{border-color:var(--accent)}
+.lock__box small{color:#a04a3a;min-height:16px;font-size:calc(11.5px * var(--fs))}
+
+/* ============ АДМИН ============ */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  font-family:var(--f-mono);font-weight:500;letter-spacing:var(--mono-track);
+  font-size:calc(11.5px * var(--fs));padding:12px 20px;min-height:44px;
+  border:1px solid var(--ink);position:relative;overflow:hidden;text-align:center;
+  transition:color .4s var(--ease),border-color .4s,background .4s}
+.btn--solid{background:var(--ink);color:var(--paper)}
+.btn--solid:hover{background:var(--accent);border-color:var(--accent)}
+.btn--ghost{border-color:var(--line-2);color:var(--ink-soft)}
+.btn--ghost:hover{color:var(--ink);border-color:var(--ink)}
+.btn--danger{border-color:color-mix(in srgb,#a04a3a 60%,var(--paper));color:#a04a3a}
+.btn--danger:hover{background:#a04a3a;color:var(--paper);border-color:#a04a3a}
+.btn--sm{padding:8px 12px;min-height:36px;font-size:calc(10.5px * var(--fs))}
+
+.admin{position:fixed;inset:0;z-index:92;visibility:hidden}
+.admin.is-open{visibility:visible}
+.admin__scrim{position:absolute;inset:0;background:color-mix(in srgb,var(--ink) 55%,transparent);
+  opacity:0;transition:opacity .4s}
+.admin.is-open .admin__scrim{opacity:1}
+.admin__win{position:absolute;inset:clamp(8px,2.2vw,38px);background:var(--paper);
+  display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;
+  transform:translateY(18px) scale(.99);opacity:0;
+  transition:transform .5s var(--ease),opacity .35s}
+.admin.is-open .admin__win{transform:none;opacity:1}
+.admin__top{display:flex;align-items:center;gap:14px;padding:12px 18px;
+  border-bottom:1px solid var(--line);flex-wrap:wrap}
+.admin__top b{font-family:var(--f-display);font-weight:700;font-size:calc(14px * var(--fs));
+  letter-spacing:0;text-transform:lowercase}
+.admin__tabs{display:flex;gap:4px;margin-left:6px;flex-wrap:wrap}
+.admin__tabs button{font-family:var(--f-mono);font-weight:500;letter-spacing:var(--mono-track);
+  font-size:calc(11.5px * var(--fs));padding:8px 13px;min-height:38px;
+  color:var(--ink-soft);border:1px solid transparent;
+  transition:background .25s,color .25s,border-color .25s}
+.admin__tabs button:hover{border-color:var(--line)}
+.admin__tabs button.is-on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.admin__close{margin-left:auto;font-size:calc(12px * var(--fs));color:var(--ink-soft);
+  min-height:38px;padding:0 4px}
+.admin__close:hover{color:var(--ink)}
+.admin__body{overflow-y:auto;padding:20px 18px 40px;overscroll-behavior:contain}
+.admin__foot{display:flex;align-items:center;gap:16px;padding:10px 18px;border-top:1px solid var(--line)}
+.admin__foot #adminStatus{font-size:calc(11px * var(--fs));color:var(--ink-soft)}
+.admin__footbtns{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+
+.arow{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:14px;align-items:center;
+  padding:9px;border:1px solid var(--line);margin-bottom:7px;background:var(--paper)}
+.arow.is-drag{opacity:.4}
+.arow__thumb{width:64px;height:64px;object-fit:cover;background:var(--paper-2)}
+.arow__t{font-family:var(--f-display);font-weight:600;font-size:calc(14.5px * var(--fs));
+  letter-spacing:0;margin:0}
+.arow__m{font-family:var(--f-mono);font-weight:500;letter-spacing:var(--mono-track);
+  font-size:calc(10.5px * var(--fs));color:var(--ink-soft);margin:3px 0 0}
+.arow__btns{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.arow__btns button{font-family:var(--f-mono);font-weight:500;letter-spacing:var(--mono-track);
+  font-size:calc(10.5px * var(--fs));padding:8px 11px;min-height:36px;
+  border:1px solid var(--line);color:var(--ink-soft)}
+.arow__btns button:hover{border-color:var(--ink);color:var(--ink)}
+.arow__handle{cursor:grab;color:var(--line-2);padding:0 4px;font-size:15px}
+
+.field{display:block;margin-bottom:15px}
+.field>span{display:block;font-family:var(--f-mono);font-weight:500;
+  letter-spacing:var(--mono-track);font-size:calc(10.5px * var(--fs));
+  color:var(--ink-soft);margin-bottom:6px}
+.field input[type=text],.field input[type=number],.field input[type=password],
+.field input[type=search],.field textarea,.field select{
+  width:100%;padding:11px 12px;border:1px solid var(--line);
+  background:var(--paper);color:var(--ink);font:inherit;
+  font-size:calc(13.5px * var(--fs));outline:none;transition:border-color .3s}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--accent)}
+.field textarea{min-height:120px;resize:vertical;line-height:1.6}
+.field input[type=range]{width:100%;accent-color:var(--accent)}
+.field input[type=color]{width:100%;height:40px;border:1px solid var(--line);background:none;padding:3px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0 14px}
+.cols--spec{grid-template-columns:1fr 1fr auto;align-items:end}
+.editor{max-width:960px}
+.editor h4{font-family:var(--f-display);font-weight:600;font-size:calc(14px * var(--fs));
+  letter-spacing:0;text-transform:lowercase;margin:24px 0 11px;
+  padding-bottom:7px;border-bottom:1px solid var(--line)}
+.editor h4:first-child{margin-top:0}
+.imgs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px}
+.imgs__item{position:relative;width:96px;height:96px;overflow:hidden;background:var(--paper-2);
+  border:1px solid var(--line)}
+.imgs__item img,.imgs__item video{width:100%;height:100%;object-fit:cover;display:block}
+.imgs__item .imgs__btns{position:absolute;left:0;right:0;top:0;display:flex;gap:1px;
+  background:color-mix(in srgb,var(--ink) 60%,transparent);opacity:0;transition:opacity .25s}
+.imgs__item:hover .imgs__btns,.imgs__item:focus-within .imgs__btns{opacity:1}
+@media (hover:none){ .imgs__item .imgs__btns{opacity:1} }
+.imgs__btns button{flex:1;min-height:26px;color:var(--paper);font-family:var(--f-mono);
+  font-size:calc(11px * var(--fs));line-height:1;padding:5px 0}
+.imgs__btns button:hover{background:var(--accent)}
+.imgs__item.is-cover::after{content:"обложка";position:absolute;left:0;bottom:0;right:0;
+  background:var(--accent);color:var(--paper);font-family:var(--f-mono);font-size:9px;
+  text-align:center;padding:3px 0;letter-spacing:.06em}
+.imgs__item.is-video::before{content:"видео";position:absolute;left:0;bottom:0;right:0;z-index:2;
+  background:var(--ink);color:var(--paper);font-family:var(--f-mono);font-size:9px;
+  text-align:center;padding:3px 0;letter-spacing:.06em}
+.imgs__item.is-video.is-cover::before{bottom:17px}
+.imgs__item.is-alpha{background:
+  repeating-conic-gradient(var(--paper-3) 0 25%,var(--paper) 0 50%) 0 0/16px 16px}
+.drop{border:1px dashed var(--line-2);padding:20px;text-align:center;
+  font-family:var(--f-mono);font-weight:500;letter-spacing:var(--mono-track);
+  color:var(--ink-soft);font-size:calc(11.5px * var(--fs));
+  transition:border-color .3s,background .3s;cursor:pointer}
+.drop:hover,.drop.is-over{border-color:var(--accent);background:var(--paper-2)}
+.hint{font-family:var(--f-mono);font-weight:400;letter-spacing:.03em;
+  font-size:calc(10.8px * var(--fs));color:var(--ink-soft);
+  margin:8px 0 15px;line-height:1.65}
+/* подпись под полем прижимается к нему вплотную, отдельно стоящая — нет */
+.field + .hint{margin-top:-7px}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.toolbar .grow{flex:1 1 220px}
+.toolbar .field{margin-bottom:0}
+
+/* ---- палитры ---- */
+.swatches{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:18px}
+.swatch{position:relative;border:1px solid var(--line);padding:9px;text-align:left;
+  transition:border-color .3s,box-shadow .3s}
+.swatch i{display:block;height:32px;margin-bottom:7px}
+.swatch b{font-family:var(--f-mono);font-weight:500;font-size:calc(11px * var(--fs))}
+.swatch small{display:block;font-family:var(--f-mono);font-size:calc(9.5px * var(--fs));
+  color:var(--ink-mute);margin-top:2px}
+.swatch.is-on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.swatch__del{position:absolute;top:4px;right:4px;width:22px;height:22px;
+  display:grid;place-items:center;background:var(--paper);border:1px solid var(--line);
+  font-size:13px;line-height:1}
+.swatch__del:hover{background:var(--ink);color:var(--paper)}
+
+.roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:6px}
+.role{border:1px solid var(--line);padding:12px}
+.role>b{display:block;font-family:var(--f-display);font-weight:600;
+  font-size:calc(13px * var(--fs));margin-bottom:2px}
+.role>small{display:block;color:var(--ink-mute);font-size:calc(10.5px * var(--fs));
+  line-height:1.5;margin-bottom:9px}
+.role__opts{display:flex;gap:6px;flex-wrap:wrap}
+.role__opt{width:34px;height:34px;border:1px solid var(--line-2);position:relative;
+  transition:transform .25s,box-shadow .25s}
+.role__opt:hover{transform:scale(1.08)}
+.role__opt.is-on{box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--ink)}
+
+/* ---- живой предпросмотр карточки в редакторе ---- */
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,340px);
+  gap:clamp(16px,2vw,28px);align-items:start}
+.preview{position:sticky;top:0}
+.preview__label{font-family:var(--f-mono);font-weight:500;letter-spacing:var(--mono-track);
+  font-size:calc(10.5px * var(--fs));color:var(--ink-soft);margin:0 0 8px}
+.preview__card{border:1px solid var(--line);background:var(--paper)}
+.preview__note{font-family:var(--f-mono);font-size:calc(10px * var(--fs));
+  color:var(--ink-mute);margin:8px 0 0;line-height:1.6}
+
+/* ---- строки характеристик с перетаскиванием ---- */
+.specrow{display:grid;grid-template-columns:24px 1fr 1fr auto;gap:10px;align-items:end;
+  margin-bottom:4px}
+.specrow__grip{cursor:grab;color:var(--line-2);text-align:center;padding-bottom:12px}
+.specrow.is-drag{opacity:.4}
+
+/* ---- фотолента «о мастере» в панели ---- */
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+.photo{position:relative;aspect-ratio:1;overflow:hidden;background:var(--paper-2);
+  border:1px solid var(--line)}
+.photo img{width:100%;height:100%;object-fit:cover}
+.photo__btns{position:absolute;inset:auto 0 0 0;display:flex;gap:1px;
+  background:color-mix(in srgb,var(--ink) 70%,transparent)}
+.photo__btns button{flex:1;color:var(--paper);font-family:var(--f-mono);
+  font-size:calc(10px * var(--fs));padding:6px 0;min-height:32px}
+.photo__btns button:hover{background:var(--accent)}
+.photo.is-center{outline:2px solid var(--accent);outline-offset:-2px}
+.photo.is-center [data-act="pcenter"]{background:var(--accent)}
+
+/* ============ АДАПТИВ ============
+   Три ступени: телефон (<=640), планшет (641–1024), десктоп.        */
+
+/* --- планшет --- */
+@media (max-width:1100px){
+  :root{--card-min:250px}
+  .band{grid-template-columns:1fr;gap:clamp(18px,3vw,32px)}
+  .band__text{columns:1}
+  .split{grid-template-columns:1fr}
+  .preview{position:static;max-width:340px}
+}
+@media (max-width:1024px){
+  /* Кадр занимает всю ширину экрана, а высоту берёт от собственных
+     пропорций (--sheet-ar ставит ui.js по загруженному снимку) — так
+     по бокам не остаётся пустых полей. Очень высокие кадры упираются
+     в потолок, чтобы под ними осталось место названию и цене. */
+  .sheet__panel{width:min(720px,100vw);grid-template-columns:1fr;
+    grid-template-rows:auto minmax(0,1fr)}
+  .sheet__imgs{flex:none;aspect-ratio:var(--sheet-ar,4 / 5);
+    max-height:66vh;max-height:66svh}
+  .about{grid-template-columns:minmax(0,1fr);gap:clamp(28px,5vw,48px)}
+  .drift{min-height:0;height:min(66vh,520px);height:min(66svh,520px)}
+  .hero__lineart{width:min(58vw,460px);height:min(60vh,520px);right:-10%}
+}
+
+/* --- телефон --- */
+@media (max-width:820px){
+  .nav__links{position:fixed;inset:0;background:var(--paper);flex-direction:column;
+    justify-content:center;align-items:center;gap:22px;
+    font-family:var(--f-display);font-weight:600;font-size:clamp(20px,6vw,26px);
+    letter-spacing:-.01em;
+    clip-path:circle(0% at calc(100% - 34px) 30px);
+    transition:clip-path .7s var(--ease);z-index:-1}
+  .nav.is-menu .nav__links{clip-path:circle(150% at calc(100% - 34px) 30px);z-index:1}
+  /* пока меню раскрыто, шапка отдаёт ему фон */
+  .nav.is-menu{background:transparent;border-bottom-color:transparent}
+  .nav__links a span{color:var(--ink)}
+  /* шапка остаётся поверх раскрытого меню: иначе крестик закрывался бы
+     только выбором пункта, а логотип пропадал вместе с ним */
+  .nav__brand,.nav__tg,.burger{position:relative;z-index:2}
+  .nav__tg{margin-left:auto}
+  .burger{display:inline-flex}
+  .admin__win{inset:0}
+  .admin__tabs{order:3;width:100%;margin-left:0}
+  .drift{min-height:0;width:100%;
+    height:min(72vh,520px);height:min(72svh,520px)}
+  .gpanel__close{right:12px;top:10px;padding:10px 13px}
+}
+
+/* Альбомная ориентация телефона и планшета: экран низкий и широкий,
+   поэтому колонок должно быть больше, а кадр — ближе к квадрату,
+   иначе две вытянутые карточки съедают всю высоту. */
+@media (orientation:landscape) and (max-height:620px){
+  :root{--card-min:190px}
+  .card__media{aspect-ratio:1/1;max-height:none}
+  body[data-cards="grid"] .card__media{aspect-ratio:1/1}
+  .hero{min-height:auto;padding-top:clamp(88px,18vh,120px)}
+}
+@media (orientation:landscape) and (min-width:641px) and (max-height:620px){
+  .grid,body[data-cards="grid"] .grid{
+    grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr))}
+}
+
+@media (max-width:640px){
+  .grid{grid-template-columns:1fr}
+  .card__media{aspect-ratio:3/4;max-height:74vh;max-height:74svh}
+  .card__cap{padding:14px 16px 20px}
+  .cardmode{display:inline-flex}
+
+  /* компактный режим: вдвое больше работ на экране */
+  body[data-cards="grid"] .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body[data-cards="grid"] .card__media{aspect-ratio:1/1;max-height:none}
+  body[data-cards="grid"] .card__cap{padding:10px 11px 14px;
+    flex-direction:column;align-items:flex-start;gap:6px}
+  body[data-cards="grid"] .card__pricebox{align-items:flex-start;
+    flex-direction:row;flex-wrap:wrap;gap:6px}
+  body[data-cards="grid"] .card__name{font-size:calc(13px * var(--fs));line-height:1.2}
+  body[data-cards="grid"] .card__cat{font-size:calc(9.5px * var(--fs));margin-top:3px}
+  body[data-cards="grid"] .card__price{font-size:calc(11.5px * var(--fs))}
+  body[data-cards="grid"] .card__badge{font-size:calc(11px * var(--fs));padding:6px 11px}
+  body[data-cards="grid"] .st{font-size:calc(8.5px * var(--fs));padding:3px 6px}
+  body[data-cards="grid"] .card__play{width:24px;height:24px;right:7px;bottom:7px}
+  .hero{min-height:92svh}
+  .hero__foot{position:static;margin-top:26px;opacity:1;transition:none}
+  .filters{width:100%;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
+    padding-bottom:2px;margin:0 calc(var(--gut) * -1);padding-left:var(--gut);
+    padding-right:var(--gut)}
+  .filters::-webkit-scrollbar{display:none}
+  .filters button{flex:none}
+  .head{padding-bottom:16px}
+  .sheet__body{padding:22px 18px 32px}
+  .sheet__price{font-size:calc(19px * var(--fs))}
+  .foot{gap:10px}
+  .foot__tg{margin-left:auto}
+  .toast{left:12px;right:12px;transform:translate(0,18px);max-width:none}
+  .toast.is-on{transform:translate(0,0)}
+  .gsheet{--gsheet-top:clamp(44px,6.5vh,64px)}
+  .gpanel__head{padding-top:44px}
+
+  /* ---- панель управления на телефоне ---- */
+  .admin__top{gap:10px;padding:12px 14px}
+  .admin__top b{font-size:calc(13px * var(--fs))}
+  .admin__close{font-size:calc(12px * var(--fs));padding:6px 0}
+  /* вкладки — одной строкой с прокруткой, а не переносом на три этажа */
+  .admin__tabs{order:3;width:100%;max-width:100%;margin:2px 0 0;padding:0 0 2px;
+    flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none}
+  .admin__tabs::-webkit-scrollbar{display:none}
+  .admin__tabs button{flex:none;padding:9px 14px;font-size:calc(12.5px * var(--fs))}
+  .admin__body{padding:16px 14px 32px}
+  .admin__foot{padding:10px 14px;gap:10px;flex-wrap:wrap}
+  .admin__foot #adminStatus{width:100%;order:2}
+  .admin__footbtns{margin-left:0;width:100%;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px}
+  .admin__footbtns .btn:last-child{grid-column:1/-1}
+
+  /* ничто не должно распирать панель шире экрана */
+  .admin__win,.admin__top,.admin__body,.admin__foot{min-width:0}
+  .admin__body{overflow-x:hidden}
+  .toolbar .hint{flex:1 1 100%;margin:0}
+
+  /* строка работы: обложка и название сверху, кнопки — отдельной лентой.
+     minmax(0,1fr) обязателен: иначе колонка растягивается под кнопки */
+  .arow{grid-template-columns:52px minmax(0,1fr);gap:10px;padding:10px}
+  .arow>div{min-width:0}
+  .arow__t,.arow__m{overflow-wrap:anywhere}
+  .arow__thumb{width:52px;height:52px}
+  .arow__btns{grid-column:1/-1;min-width:0;flex-wrap:wrap;gap:6px;justify-content:flex-start}
+  .arow__btns button{flex:1 1 auto;min-height:40px;padding:8px 10px;font-size:calc(11px * var(--fs))}
+  .arow__handle{display:none}          /* перетаскивание пальцем не работает — есть стрелки */
+  .arow__btns [data-act="up"],.arow__btns [data-act="down"]{flex:0 0 46px}
+
+  .cols,.cols--spec{grid-template-columns:1fr}
+  .specrow{grid-template-columns:1fr;gap:0}
+  .specrow__grip{display:none}
+  .field{margin-bottom:12px}
+  .field input[type=text],.field input[type=number],.field input[type=password],
+  .field input[type=search],.field textarea,.field select{font-size:16px;padding:12px}   /* 16px — iOS не зумит */
+  .field textarea{min-height:110px}
+  .toolbar .btn{flex:1 1 auto}
+  .swatches{grid-template-columns:1fr 1fr}
+  .roles{grid-template-columns:1fr}
+  .imgs__item{width:76px;height:76px}
+  .photos{grid-template-columns:repeat(auto-fill,minmax(92px,1fr))}
+  .lock__box{padding:22px}
+}
+
+@media (max-width:520px){
+  .nav__tg span{display:none}
+  .nav__tg{padding:9px 11px}
+  .hero__title{font-size:clamp(38px,12vw,64px)}
+  .specs li{font-size:calc(11px * var(--fs))}
+  .gpanel__close span{display:none}
+  .gpanel__close{padding:12px}
+}
+
+/* --- крупные экраны --- */
+@media (min-width:1900px){
+  :root{--maxw:1760px}
+  .grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+
+/* --- указатель без наведения: не прячем подписи под hover --- */
+@media (hover:none){
+  .card__over{display:none}
+}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important;
+    animation-iteration-count:1!important}
+  .hero__botany{display:none}
+}

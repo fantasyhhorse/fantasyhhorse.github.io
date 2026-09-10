@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Страница не найдена — FHh</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<script>
+  // Адреса разделов у сайта хэшевые (#/about), поэтому любой неизвестный
+  // путь просто возвращаем на главную.
+  location.replace(location.origin + location.pathname.replace(/\/[^\/]*$/, '/') .replace(/404\.html$/, '') + '#/');
+</script>
+<style>
+  body{margin:0;height:100vh;display:grid;place-items:center;background:#eedbb3;color:#231f20;
+    font:400 14px/1.6 "Manrope","Segoe UI",Arial,sans-serif}
+  a{color:#d9772f}
+</style>
+</head>
+<body>
+  <p>Страница не найдена. <a href="./">Вернуться на главную</a></p>
+</body>
+</html>

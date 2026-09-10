@@ -1,0 +1,82 @@
+name: Публикация сайта на GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Предохранитель: панель управления не должна уезжать на боевой домен.
+      # config.js -> admin: 'local' (по умолчанию) или 'off'.
+      - name: Проверить, что панель управления закрыта
+        run: |
+          if grep -qE "admin:[[:space:]]*'always'" assets/js/config.js; then
+            echo "::error file=assets/js/config.js::admin: 'always' — панель будет доступна всем и на виду. Поставьте 'local', 'remote' или 'off'."
+            exit 1
+          fi
+          if grep -qE "admin:[[:space:]]*'remote'" assets/js/config.js; then
+            echo "::notice::admin: 'remote' — панель доступна на сайте по #/admin. Публикация возможна только с токеном; убедитесь, что пароль панели изменён."
+          fi
+          echo "config.js в порядке"
+
+      # Витрина посетителей берётся из data/site.json. Файла может не быть —
+      # тогда сайт покажет демо-каталог, это не ошибка, только предупреждение.
+      - name: Проверить содержимое витрины
+        run: |
+          if [ -f data/site.json ]; then
+            python3 -c "import json,sys; d=json.load(open('data/site.json',encoding='utf-8')); s=d.get('site',d); print('работ в витрине:', len(s['items']))"
+            SIZE=$(stat -c%s data/site.json)
+            echo "data/site.json: $((SIZE/1024)) КБ"
+            # панель выкладывает медиа отдельными файлами, поэтому раздутый
+            # site.json — почти всегда признак старого формата с base64 внутри
+            if [ "$SIZE" -gt 3145728 ]; then
+              echo "::warning::data/site.json больше 3 МБ — его качает каждый посетитель. Опубликуйте из панели заново: фото уедут отдельными файлами в assets/media/."
+            fi
+          else
+            echo "::warning::data/site.json не найден — сайт опубликуется с демо-каталогом. Соберите файл в панели: Данные → Файл для публикации."
+          fi
+
+      # Ограничения GitHub Pages: файл не больше 100 МБ, сайт целиком — до 1 ГБ.
+      - name: Проверить вес сайта
+        run: |
+          TOTAL=$(du -sm --exclude=.git . | cut -f1)
+          echo "размер сайта: ${TOTAL} МБ"
+          BIG=$(find . -path ./.git -prune -o -type f -size +90M -print)
+          if [ -n "$BIG" ]; then
+            echo "::error::GitHub Pages не принимает файлы тяжелее 100 МБ:"
+            echo "$BIG"
+            exit 1
+          fi
+          if [ "$TOTAL" -gt 900 ]; then
+            echo "::warning::сайт занимает ${TOTAL} МБ при мягком потолке Pages в 1 ГБ — почистите assets/media/"
+          fi
+
+      # enablement: true — первый запуск сам включает Pages в настройках репозитория,
+      # руками в Settings ничего нажимать не нужно
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
