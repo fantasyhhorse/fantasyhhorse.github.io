@@ -242,12 +242,15 @@ window.FHh = window.FHh || {};
       '</div>';
   }
 
-  /* Подложка под вырезанное изображение: та же сгенерированная ботаника,
-     что показывается у работ без фото. Иначе PNG с прозрачным фоном висел бы
-     на голой бумаге. */
-  function backdrop(el, it, w, h) {
-    el.classList.add('is-cutout');
-    el.style.backgroundImage = 'url("' + B.placeholder(it.id + it.title, w, h) + '")';
+  /* Ставит облегчённую копию, а если её ещё нет в репозитории —
+     молча откатывается на исходный файл. */
+  function setImg(node, url, kind) {
+    if (!url) return;
+    var light = S.mediaSrc(url, kind);
+    if (light !== url) {
+      node.onerror = function () { node.onerror = null; node.src = url; };
+    }
+    node.src = light;
   }
 
   /* Обложка работы: первое медиа в списке. Видео показывается кадром,
@@ -280,9 +283,9 @@ window.FHh = window.FHh || {};
     }
 
     S.resolveMedia(ref).then(function (u) {
-      node.src = u || B.placeholder(it.id + it.title, 720, 900);
+      if (u) setImg(node, u, 'card');
+      else node.src = B.placeholder(it.id + it.title, 720, 900);
     });
-    S.hasAlpha(ref).then(function (yes) { if (yes) backdrop(node, it, 720, 900); });
   }
 
   /* Универсальная отрисовка сетки: и главная витрина, и страница группы */
@@ -589,61 +592,152 @@ window.FHh = window.FHh || {};
      рамки по пропорциям снимка. Состояние держим здесь, а не внутри
      openProduct: до него дотягиваются и жест, и клавиши.
      ------------------------------------------------------------ */
-  var sheetNodes = [], sheetAt = 0, sheetSwiped = false;
+  var sheetCar = null;
 
-  /* Высота рамки на телефоне считается из этой доли: кадр тогда
-     ложится от края до края, не уменьшаясь и не оставляя полей. */
-  function applyRatio() {
-    var n = sheetNodes[sheetAt];
-    if (!n) return;
-    var w = n.naturalWidth || n.videoWidth || 0;
-    var h = n.naturalHeight || n.videoHeight || 0;
-    if (w && h) $('#prodImgWrap').style.setProperty('--sheet-ar', w + ' / ' + h);
-  }
+  /* ============================================================
+     ЛЕНТА КАДРОВ
+     Кадры лежат в строку на одной дорожке, дорожка едет за пальцем и
+     доводится до ближайшего кадра — так же, как листается плёнка в
+     телефоне. Раньше кадры лежали стопкой и перекрашивались
+     прозрачностью: пальцем это не читалось как листание.
+     Одна и та же механика в карточке работы и в услуге.
+     ============================================================ */
+  function makeCarousel(viewport, opts) {
+    var o = opts || {};
+    var track = document.createElement('div');
+    track.className = 'track';
+    viewport.appendChild(track);
 
-  function show(i) {
-    if (!sheetNodes.length) return;
-    var n = sheetNodes.length;
-    sheetAt = ((i % n) + n) % n;
-    sheetNodes.forEach(function (x, k) {
-      x.classList.toggle('is-on', k === sheetAt);
-      if (k !== sheetAt && x.pause) x.pause();
-    });
-    var tb = $$('#prodThumbs button');
-    tb.forEach(function (x, k) { x.classList.toggle('is-on', k === sheetAt); });
-    if (tb[sheetAt] && tb[sheetAt].scrollIntoView) {
-      tb[sheetAt].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    var nodes = [];         // сами <img>/<video>
+    var at = 0;
+    var swiped = false;
+
+    // жест
+    var live = false, decided = '', x0 = 0, y0 = 0, dx = 0;
+    var lastX = 0, lastT = 0, vx = 0, pid = null;
+
+    function width() { return viewport.clientWidth || 1; }
+    function place(px, ease) {
+      track.style.transition = ease ? 'transform .42s cubic-bezier(.22,.61,.36,1)' : 'none';
+      track.style.transform = 'translate3d(' + px.toFixed(2) + 'px,0,0)';
     }
-    applyRatio();
-  }
+    function settle(ease) { place(-at * width(), ease !== false); }
 
-  /* Жест вбок переключает кадр. Вертикаль отдаём странице, иначе
-     карточку нельзя было бы прокрутить пальцем по самому снимку;
-     после протяжки гасим клик, чтобы не открылся полный просмотр.
-     Лента работ и лента услуги устроены одинаково, поэтому счётчик
-     кадров, шаг и метку протяжки передаём снаружи. */
-  function wireSwipe(box, count, go, mark) {
-    if (box.dataset.swipe) return;
-    box.dataset.swipe = '1';
-    var x0 = 0, y0 = 0, live = false;
+    function go(i, ease) {
+      var n = nodes.length; if (!n) return;
+      at = Math.max(0, Math.min(n - 1, i));
+      nodes.forEach(function (x, k) {
+        x.classList.toggle('is-on', k === at);
+        if (k !== at && x.pause) x.pause();
+      });
+      settle(ease);
+      if (o.onChange) o.onChange(at);
+    }
+    function step(d) { go(at + d); }
 
-    box.addEventListener('pointerdown', function (e) {
+    function endDrag(commit) {
+      if (!live) return;
+      live = false;
+      viewport.classList.remove('is-dragging');
+      if (pid !== null) { try { viewport.releasePointerCapture(pid); } catch (e) {} pid = null; }
+      var moved = decided === 'x' && commit;
+      decided = '';
+      if (!moved || nodes.length < 2) { settle(); dx = 0; return; }
+      swiped = Math.abs(dx) > 8;
+      // порог — либо треть кадра, либо быстрый бросок
+      var far = Math.abs(dx) > width() * 0.28 || Math.abs(vx) > 0.45;
+      if (far) go(at + (dx < 0 ? 1 : -1)); else settle();
+      dx = 0;
+    }
+
+    viewport.addEventListener('pointerdown', function (e) {
       if (e.button) return;
       // метку протяжки снимаем здесь, а не в клике: если браузер
       // после жеста клик не пришлёт, она бы съела следующее касание
-      mark(false);
-      x0 = e.clientX; y0 = e.clientY; live = true;
+      swiped = false;
+      if (nodes.length < 2) return;
+      live = true; decided = ''; dx = 0; vx = 0;
+      x0 = lastX = e.clientX; y0 = e.clientY; lastT = e.timeStamp || Date.now();
+      pid = e.pointerId;
     });
-    box.addEventListener('pointerup', function (e) {
+
+    viewport.addEventListener('pointermove', function (e) {
       if (!live) return;
-      live = false;
-      if (count() < 2) return;
-      var dx = e.clientX - x0, dy = e.clientY - y0;
-      if (Math.abs(dx) < 42 || Math.abs(dx) < Math.abs(dy) * 1.3) return;
-      mark(true);
-      go(dx < 0 ? 1 : -1);
+      var mx = e.clientX - x0, my = e.clientY - y0;
+      if (!decided) {
+        if (Math.abs(mx) < 6 && Math.abs(my) < 6) return;
+        // вертикаль отдаём странице: иначе карточку не прокрутить
+        // пальцем по самому снимку
+        decided = Math.abs(mx) > Math.abs(my) ? 'x' : 'y';
+        if (decided === 'y') { live = false; settle(); return; }
+        try { viewport.setPointerCapture(pid); } catch (err) {}
+        viewport.classList.add('is-dragging');
+      }
+      var t = e.timeStamp || Date.now();
+      if (t > lastT) vx = (e.clientX - lastX) / (t - lastT);
+      lastX = e.clientX; lastT = t;
+      dx = mx;
+      // у краёв дорожка тянется вязко, а не улетает в пустоту
+      var edge = (at === 0 && dx > 0) || (at === nodes.length - 1 && dx < 0);
+      place(-at * width() + (edge ? dx * 0.3 : dx), false);
     });
-    box.addEventListener('pointercancel', function () { live = false; });
+
+    viewport.addEventListener('pointerup', function () { endDrag(true); });
+    viewport.addEventListener('pointercancel', function () { endDrag(false); });
+
+    return {
+      /* Кадр кладём в свою ячейку: раньше кадры лежали друг на друге,
+         и прозрачный перехватывал клики у видимого. */
+      add: function (node) {
+        var cell = document.createElement('div');
+        cell.className = 'slide';
+        cell.appendChild(node);
+        track.appendChild(cell);
+        nodes.push(node);
+        return cell;
+      },
+      go: go,
+      step: step,
+      at: function () { return at; },
+      count: function () { return nodes.length; },
+      node: function (i) { return nodes[i]; },
+      active: function () { return nodes[at]; },
+      swiped: function () { return swiped; },
+      resize: function () { settle(false); }
+    };
+  }
+
+  /* Пропорция рамки на телефоне: кадр ложится от края до края, а не
+     тонет в полях по бокам. Совсем вытянутые снимки подрезаем — иначе
+     один кадр занял бы весь экран и до текста пришлось бы скроллить. */
+  var AR_MIN = 0.62, AR_MAX = 1.9;
+  function frameRatio(node) {
+    if (!node) return 0;
+    var w = node.naturalWidth || node.videoWidth || 0;
+    var h = node.naturalHeight || node.videoHeight || 0;
+    if (!w || !h) return 0;
+    return Math.max(AR_MIN, Math.min(AR_MAX, w / h));
+  }
+
+  /* Высота рамки задаётся пикселями, а не aspect-ratio: пропорцию
+     браузер не анимирует, и при листании рамка прыгала бы рывком. */
+  function fitFrame(viewport, node) {
+    var r = frameRatio(node);
+    if (!r) return;
+    viewport.style.setProperty('--sheet-ar', r.toFixed(4) + ' / 1');
+    // ширину берём у родителя: у самой рамки она может быть выведена из
+    // пропорции, и тогда высота считалась бы от собственной же высоты
+    var host = viewport.parentNode;
+    var w = (host && host.clientWidth) || viewport.clientWidth || 0;
+    if (w) viewport.style.setProperty('--sheet-h', Math.round(w / r) + 'px');
+  }
+
+  function applyRatio() {
+    if (sheetCar) fitFrame($('#prodImgWrap'), sheetCar.active());
+  }
+
+  function show(i) {
+    if (sheetCar) sheetCar.go(i);
   }
 
   function openProduct(id) {
@@ -674,8 +768,32 @@ window.FHh = window.FHh || {};
     var refs = (it.images && it.images.length) ? it.images : [null];
     var wrap = $('#prodImgWrap'); wrap.innerHTML = '';
     var thumbs = $('#prodThumbs'); thumbs.innerHTML = '';
-    sheetNodes = []; sheetAt = 0;
     wrap.style.removeProperty('--sheet-ar');
+    wrap.style.removeProperty('--sheet-h');
+
+    var car = makeCarousel(wrap, {
+      onChange: function (i) {
+        var tb = $$('#prodThumbs button');
+        tb.forEach(function (x, k) { x.classList.toggle('is-on', k === i); });
+        if (tb[i] && tb[i].scrollIntoView) {
+          tb[i].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
+        fitFrame(wrap, car.node(i));
+        loadAround(i);
+      }
+    });
+    sheetCar = car;
+
+    /* Полные кадры подтягиваем вокруг текущего, а не все сразу: у работы
+       бывает под два десятка снимков, и на телефоне это минуты ожидания
+       и лишний трафик. Соседей греем заранее, чтобы листание не упиралось
+       в пустую рамку. */
+    var pending = [];
+    function loadAround(i) {
+      for (var k = i - 1; k <= i + 1; k++) {
+        if (k >= 0 && k < pending.length && pending[k]) { pending[k](); pending[k] = null; }
+      }
+    }
 
     refs.forEach(function (ref, i) {
       var isVideo = ref && S.mediaKind(ref) === 'video';
@@ -686,57 +804,53 @@ window.FHh = window.FHh || {};
         node.controls = true; node.loop = true; node.playsInline = true;
         node.setAttribute('playsinline', '');
         node.preload = 'metadata';
-        S.resolveMedia(ref).then(function (u) {
-          if (u) node.src = u;
-          if (i === 0) requestAnimationFrame(function () { node.classList.add('is-on'); });
+        pending.push(function () {
+          S.resolveMedia(ref).then(function (u) { if (u) node.src = u; });
         });
       } else {
         node = document.createElement('img');
         // без этого браузер начинает свой drag&drop и присылает
         // pointercancel — протяжка мышью не доживала до конца жеста
         node.draggable = false;
-        var set = function (u) {
-          node.src = u;
-          if (i === 0) requestAnimationFrame(function () { node.classList.add('is-on'); });
-        };
-        if (ref) {
-          S.resolveMedia(ref).then(function (u) { set(u || B.placeholder(it.id + i, 1200, 1500)); });
-          S.hasAlpha(ref).then(function (yes) { if (yes) backdrop(node, it, 1200, 1500); });
-        } else {
-          set(B.placeholder(it.id + it.title, 1200, 1500));
-        }
+        node.decoding = 'async';
+        pending.push(function () {
+          if (!ref) { node.src = B.placeholder(it.id + it.title, 1200, 1500); return; }
+          S.resolveMedia(ref).then(function (u) {
+            if (u) setImg(node, u, 'view');
+            else node.src = B.placeholder(it.id + i, 1200, 1500);
+          });
+        });
       }
       // клик по кадру — тот же полноэкранный просмотр, что и в «о мастере»
       node.addEventListener('click', function () {
-        if (sheetSwiped) return;                      // это была протяжка
-        if (node.classList.contains('is-on')) openViewer(node);
+        if (car.swiped()) return;                     // это была протяжка
+        if (node.classList.contains('is-on')) openViewer(node, null, ref);
       });
       // как только известен настоящий размер — подгоняем высоту рамки
       node.addEventListener(isVideo ? 'loadedmetadata' : 'load', function () {
-        if (sheetNodes[sheetAt] === node) applyRatio();
+        if (car.active() === node) fitFrame(wrap, node);
       });
-      if (!isVideo && node.complete && node.naturalWidth) applyRatio();
-      sheetNodes.push(node);
-      wrap.appendChild(node);
+      car.add(node);
 
       if (refs.length > 1) {
         var b = document.createElement('button');
         b.className = (i === 0 ? 'is-on' : '') + (isVideo ? ' is-video' : '');
         var ti = document.createElement(isVideo ? 'video' : 'img');
         if (isVideo) { ti.muted = true; ti.preload = 'metadata'; }
+        else { ti.loading = 'lazy'; ti.decoding = 'async'; }
         b.appendChild(ti);
-        if (ref) S.resolveMedia(ref).then(function (u) { ti.src = u + (isVideo ? '#t=0.1' : ''); });
-        else ti.src = node.src;
-        b.addEventListener('click', function () { show(i); });
+        // лента миниатюр берёт уменьшённые копии: раньше она тянула
+        // те же полноразмерные файлы, что и главный кадр
+        if (ref) S.resolveMedia(ref).then(function (u) {
+          if (!u) return;
+          if (isVideo) ti.src = u + '#t=0.1'; else setImg(ti, u, 'thumb');
+        });
+        b.addEventListener('click', function () { car.go(i); });
         thumbs.appendChild(b);
       }
     });
 
-    applyRatio();
-    wireSwipe(wrap,
-      function () { return sheetNodes.length; },
-      function (d) { show(sheetAt + d); },
-      function (v) { sheetSwiped = v; });
+    car.go(0, false);
 
     var bodyEl = $('.sheet__body');
     bodyEl.classList.remove('sheet__stagger');
@@ -842,24 +956,23 @@ window.FHh = window.FHh || {};
         '</div>';
 
       if (refs.length) {
-        /* Кадры услуги живут так же, как кадры работы: все лежат стопкой,
-           видимый помечен is-on. Раньше show() пересобирал <img> заново —
-           из-за этого не получалось ни протяжки, ни плавной смены. */
+        /* Кадры услуги листаются той же лентой, что и кадры работы. */
         var media = $('.svc__media', el);
         var thumbs = $('.svc__thumbs', el);
-        var nodes = [];
-        var at = 0;
-        var swiped = false;
+        var scar = makeCarousel(media, {
+          onChange: function (i) {
+            $$('button', thumbs).forEach(function (b, k) { b.classList.toggle('is-on', k === i); });
+            fitFrame(media, scar.node(i));
+            svcLoad(i);
+          }
+        });
 
-        var show = function (i) {
-          var n = nodes.length; if (!n) return;
-          at = ((i % n) + n) % n;
-          nodes.forEach(function (x, k) {
-            x.classList.toggle('is-on', k === at);
-            if (k !== at && x.pause) x.pause();
-          });
-          $$('button', thumbs).forEach(function (b, k) { b.classList.toggle('is-on', k === at); });
-        };
+        var svcPending = [];
+        function svcLoad(i) {
+          for (var k = i - 1; k <= i + 1; k++) {
+            if (k >= 0 && k < svcPending.length && svcPending[k]) { svcPending[k](); svcPending[k] = null; }
+          }
+        }
 
         refs.forEach(function (ref, i) {
           var isVideo = S.mediaKind(ref) === 'video';
@@ -868,37 +981,40 @@ window.FHh = window.FHh || {};
             node.muted = true; node.loop = true; node.playsInline = true;
             node.setAttribute('playsinline', ''); node.controls = true;
             node.preload = 'metadata';
-          } else { node.alt = sv.title; node.loading = 'lazy'; node.draggable = false; }
-          S.resolveMedia(ref).then(function (u) {
-            if (u) node.src = u + (isVideo ? '#t=0.1' : '');
+          } else { node.alt = sv.title; node.decoding = 'async'; node.draggable = false; }
+          svcPending.push(function () {
+            S.resolveMedia(ref).then(function (u) {
+              if (!u) return;
+              if (isVideo) node.src = u + '#t=0.1'; else setImg(node, u, 'view');
+            });
           });
           // клик по кадру — тот же полноэкранный просмотр, что и у работ
           if (!isVideo) node.addEventListener('click', function () {
-            if (swiped) return;                          // это была протяжка
-            if (node.classList.contains('is-on')) openViewer(node);
+            if (scar.swiped()) return;                   // это была протяжка
+            if (node.classList.contains('is-on')) openViewer(node, null, ref);
           });
-          nodes.push(node);
-          media.appendChild(node);
+          node.addEventListener(isVideo ? 'loadedmetadata' : 'load', function () {
+            if (scar.active() === node) fitFrame(media, node);
+          });
+          scar.add(node);
 
           if (refs.length > 1) {
             var b = document.createElement('button');
             b.setAttribute('aria-label', 'кадр ' + (i + 1));
             var ti = document.createElement(isVideo ? 'video' : 'img');
             if (isVideo) { ti.muted = true; ti.preload = 'metadata'; }
+            else { ti.loading = 'lazy'; ti.decoding = 'async'; }
             S.resolveMedia(ref).then(function (u) {
-              if (u) ti.src = u + (isVideo ? '#t=0.1' : '');
+              if (!u) return;
+              if (isVideo) ti.src = u + '#t=0.1'; else setImg(ti, u, 'thumb');
             });
             b.appendChild(ti);
-            b.addEventListener('click', function () { show(i); });
+            b.addEventListener('click', function () { scar.go(i); });
             thumbs.appendChild(b);
           }
         });
 
-        show(0);
-        wireSwipe(media,
-          function () { return nodes.length; },
-          function (d) { show(at + d); },
-          function (v) { swiped = v; });
+        scar.go(0, false);
       } else {
         // без фотографии колонка слева пустовала — кладём ту же
         // сгенерированную ботанику, что и у работ без снимков
@@ -1223,7 +1339,7 @@ window.FHh = window.FHh || {};
      ============================================================ */
   var viewerEl = null, viewerImg = null, viewerClose = null;
 
-  function openViewer(srcNode, onClose) {
+  function openViewer(srcNode, onClose, fullRef) {
     closeViewer();
     viewerClose = onClose || null;
 
@@ -1250,6 +1366,18 @@ window.FHh = window.FHh || {};
       big.alt = '';
     }
     if (srcNode) big.src = srcNode.currentSrc || srcNode.src;
+    /* Оригинал во всю величину тянем только здесь: в ленте достаточно
+       уменьшённой копии, а полный файл нужен, лишь когда кадр раскрыли
+       и его можно приблизить. Показываем сперва то, что уже загружено,
+       и подменяем, когда оригинал доедет. */
+    if (!isVideo && fullRef) {
+      S.resolveMedia(fullRef).then(function (u) {
+        if (!u || viewerImg !== big) return;
+        var full = new Image();
+        full.onload = function () { if (viewerImg === big) big.src = u; };
+        full.src = u;
+      });
+    }
     viewerImg = big;
     viewerEl.appendChild(big);
 
@@ -1519,9 +1647,9 @@ window.FHh = window.FHh || {};
     // Escape закрывает по одному слою: сначала карточка, потом группа
     window.addEventListener('keydown', function (e) {
       if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
-          !viewerEl && sheetNodes.length > 1 &&
+          !viewerEl && sheetCar && sheetCar.count() > 1 &&
           $('#product').classList.contains('is-open')) {
-        show(sheetAt + (e.key === 'ArrowRight' ? 1 : -1));
+        sheetCar.step(e.key === 'ArrowRight' ? 1 : -1);
         return;
       }
       if (e.key !== 'Escape') return;

@@ -434,6 +434,23 @@ window.FHh = window.FHh || {};
     }).catch(function () { return ''; });
   }
 
+  /* ---------------- облегчённые копии ----------------
+     Панель выкладывает медиа как есть, а исходники бывают по 5 МБ. Рядом
+     с ними инструмент tools/optimize-media.py кладёт уменьшённые webp:
+     assets/media/thumb/<имя>.webp для ленты миниатюр и view/<имя>.webp
+     для кадра в карточке. Оригинал остаётся и нужен только полному
+     просмотру. Копии может не быть (медиа только что добавили из панели) —
+     тогда возвращаем исходный путь, а вызывающий вешает откат по onerror. */
+  var MEDIA_RE = /^(.*assets\/media\/)([^\/?#]+)\.(?:png|jpe?g|webp|gif)(\?.*)?$/i;
+  function mediaSrc(url, kind) {
+    if (!url || !kind || kind === 'full') return url || '';
+    // blob: и data: — это предпросмотр в панели, копий у них нет
+    if (url.indexOf('blob:') === 0 || url.indexOf('data:') === 0) return url;
+    var m = MEDIA_RE.exec(url);
+    if (!m) return url;
+    return m[1] + kind + '/' + m[2] + '.webp';
+  }
+
   function mediaBlob(ref) {
     if (!isBlobRef(ref)) return Promise.resolve(null);
     return idbGet(blobKey(ref)).catch(function () { return null; });
@@ -914,6 +931,7 @@ window.FHh = window.FHh || {};
     resolveImage: resolveMedia,
     resolveMedia: resolveMedia,
     mediaKind: mediaKind,
+    mediaSrc: mediaSrc,
     isBlobRef: isBlobRef,
     hasAlpha: hasAlpha,
     ingestFile: ingestFile,

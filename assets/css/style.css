@@ -351,9 +351,6 @@ body[data-phase="live"] .hero__foot{opacity:1}
 .card__img{width:100%;height:100%;object-fit:cover;display:block;background:var(--paper-2);
   transition:transform 1.2s var(--ease),opacity .5s;will-change:transform}
 .card:hover .card__img{transform:scale(1.045)}
-/* вырезанное изображение (прозрачный фон) — целиком и на ботанической подложке */
-.card__img.is-cutout{object-fit:contain;padding:7%;
-  background-size:cover;background-position:center;background-repeat:no-repeat}
 /* значок «это видео» на обложке */
 .card__play{position:absolute;right:10px;bottom:10px;z-index:3;
   width:30px;height:30px;border-radius:50%;
@@ -430,21 +427,16 @@ body[data-phase="live"] .hero__foot{opacity:1}
   gap:clamp(18px,3vw,48px);align-items:start;
   padding:clamp(26px,4vw,52px) 0;border-top:1px solid var(--line)}
 .svc:last-child{border-bottom:1px solid var(--line)}
-/* Кадры лежат стопкой, как в карточке работы: видимый помечен is-on,
-   остальные погашены и не ловят клики — иначе верхний в разметке
-   перехватывал бы их у видимого и приближался только он. */
+/* Кадры услуги — такая же лента, что и у работы. */
 .svc__media{position:relative;overflow:hidden;background:var(--paper-2);
-  aspect-ratio:4/3;touch-action:pan-y;-webkit-user-select:none;user-select:none}
-.svc__media img,.svc__media video{position:absolute;inset:0;
-  width:100%;height:100%;object-fit:cover;
-  display:block;cursor:zoom-in;pointer-events:none;-webkit-user-drag:none;opacity:0;
-  transition:opacity .5s var(--ease),transform 1s var(--ease)}
-.svc__media img.is-on,.svc__media video.is-on{opacity:1;pointer-events:auto}
-.svc__media:hover img.is-on{transform:scale(1.03)}
-/* услуга без фотографии: заставка вместо пустого места, без курсора-лупы.
-   Заставка кладётся одна и без is-on, поэтому показываем её как есть */
-.svc__media.is-empty img{cursor:default;opacity:1;pointer-events:none}
-.svc__media.is-empty:hover img{transform:none}
+  aspect-ratio:var(--sheet-ar,4/3);touch-action:pan-y;
+  -webkit-user-select:none;user-select:none}
+.svc__media img,.svc__media video{width:100%;height:100%;display:block;
+  object-fit:contain;background:var(--paper-2);
+  cursor:zoom-in;-webkit-user-drag:none}
+/* услуга без фотографии: заставка вместо пустого места, без курсора-лупы */
+.svc__media.is-empty{aspect-ratio:4/3}
+.svc__media.is-empty img{position:absolute;inset:0;object-fit:cover;cursor:default}
 .svc__thumbs{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
 .svc__thumbs:empty{display:none}
 .svc__thumbs button{width:58px;aspect-ratio:1;overflow:hidden;opacity:.45;
@@ -482,7 +474,10 @@ body[data-phase="live"] .hero__foot{opacity:1}
 
 @media (max-width:820px){
   .svc{grid-template-columns:minmax(0,1fr);gap:16px}
-  .svc__media{aspect-ratio:16/10}
+  /* пропорцию ставит ui.js по самому кадру, 16/10 остаётся запасным
+     значением: иначе снимок тонул бы в полях по бокам */
+  .svc__media{aspect-ratio:var(--sheet-ar,16/10)}
+  .svc__media img{object-fit:cover}
 }
 
 /* ---- «о мастере»: текст слева, дрейфующие фотографии справа ---- */
@@ -641,8 +636,10 @@ body[data-phase="live"] .hero__foot{opacity:1}
 body.is-gsheet{overflow:hidden}
 
 /* ============ КАРТОЧКА РАБОТЫ ============ */
+/* dvh, а не svh: при спрятанной адресной строке в iOS панель ростом в
+   svh не доставала до низа экрана и снизу просвечивала витрина */
 .sheet{position:fixed;inset:0;z-index:60;visibility:hidden;
-  height:100vh;height:100svh}
+  height:100vh;height:100dvh}
 .sheet.is-open{visibility:visible}
 .sheet__scrim{position:absolute;inset:0;background:color-mix(in srgb,var(--ink) 62%,transparent);
   opacity:0;transition:opacity .45s var(--ease)}
@@ -664,22 +661,20 @@ body.is-gsheet{overflow:hidden}
 .sheet__close:hover span{background:var(--paper)}
 .sheet__media{position:relative;background:var(--paper-2);display:flex;flex-direction:column;
   min-height:0;min-width:0}
+/* Кадры лежат в строку на дорожке и листаются жестом, как плёнка в
+   телефоне. Раньше они лежали стопкой и менялись прозрачностью: жест
+   не читался, а прозрачный кадр перехватывал клики у видимого. */
 .sheet__imgs{flex:1;position:relative;overflow:hidden;min-height:0;
   touch-action:pan-y;-webkit-user-select:none;user-select:none}
-/* кадр вписывается целиком: раньше cover срезал у высоких снимков
-   половину, а у вырезанных вдобавок менялся object-fit — и при
-   переключении миниатюр главный кадр «прыгал» в размере.
-   pointer-events обязателен: кадры лежат стопкой друг на друге, и
-   прозрачный (opacity:0) снимок всё равно ловит клики — верхний в
-   разметке перехватывал их у видимого, и приближался только он */
-.sheet__imgs img,.sheet__imgs video{position:absolute;inset:0;width:100%;height:100%;
-  object-fit:contain;background:var(--paper-2);cursor:zoom-in;pointer-events:none;
-  -webkit-user-drag:none;
-  opacity:0;transform:scale(1.04);transition:opacity .6s var(--ease),transform 1s var(--ease)}
-.sheet__imgs img.is-on,.sheet__imgs video.is-on{opacity:1;transform:none;pointer-events:auto}
+.sheet__imgs .track,.svc__media .track{display:flex;height:100%;
+  will-change:transform;transform:translate3d(0,0,0)}
+.sheet__imgs .slide,.svc__media .slide{flex:0 0 100%;width:100%;height:100%;
+  position:relative;min-width:0}
+.sheet__imgs img,.sheet__imgs video{width:100%;height:100%;display:block;
+  object-fit:contain;background:var(--paper-2);cursor:zoom-in;
+  -webkit-user-drag:none}
+.sheet__imgs.is-dragging img,.svc__media.is-dragging img{cursor:grabbing}
 .sheet__imgs video{background:var(--ink)}
-.sheet__imgs img.is-cutout{padding:6%;
-  background-size:cover;background-position:center;background-repeat:no-repeat}
 /* Полоса миниатюр повторяет сетку витрины: равные ячейки встык,
    разделённые волосяной линией. Неактивные кадры раньше гасились
    прозрачностью — сквозь них просвечивала бумага, и лента казалась
@@ -931,14 +926,27 @@ body.is-gsheet{overflow:hidden}
   .preview{position:static;max-width:340px}
 }
 @media (max-width:1024px){
-  /* Кадр занимает всю ширину экрана, а высоту берёт от собственных
-     пропорций (--sheet-ar ставит ui.js по загруженному снимку) — так
-     по бокам не остаётся пустых полей. Очень высокие кадры упираются
-     в потолок, чтобы под ними осталось место названию и цене. */
-  .sheet__panel{width:min(720px,100vw);grid-template-columns:1fr;
-    grid-template-rows:auto minmax(0,1fr)}
-  .sheet__imgs{flex:none;aspect-ratio:var(--sheet-ar,4 / 5);
-    max-height:66vh;max-height:66svh}
+  /* Карточка на телефоне — одна колонка с общей прокруткой: кадр уезжает
+     вверх вместе с текстом. Раньше снимок был приколочен сверху, а
+     листалась только нижняя часть — читаемого места оставалась полоска.
+     Высоту рамки ui.js считает в пикселях (--sheet-h): пропорцию браузер
+     не анимирует, и при листании рамка дёргалась бы рывком. */
+  .sheet__panel{width:min(720px,100vw);display:block;
+    overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain}
+  .sheet__media{display:block}
+  /* только height, без aspect-ratio: вместе они дерутся — рамка с
+     заданной высотой начинает считать по пропорции ещё и ширину и
+     схлопывается в столбик посреди экрана */
+  .sheet__imgs{flex:none;width:100%;height:var(--sheet-h,62vh);
+    max-height:82vh;max-height:82dvh;transition:height .32s var(--ease)}
+  /* кадр ложится от края до края: рамка уже той же пропорции, что и
+     снимок, поэтому cover ничего не срезает, а поля по бокам исчезают */
+  .sheet__imgs img{object-fit:cover}
+  .sheet__body{overflow:visible}
+  /* панель прокручивается целиком, поэтому крестик держим на месте:
+     иначе он уезжал бы вверх вместе с кадром */
+  .sheet__close{position:fixed}
   .about{grid-template-columns:minmax(0,1fr);gap:clamp(28px,5vw,48px)}
   .drift{min-height:0;height:min(66vh,520px);height:min(66svh,520px)}
   .hero__lineart{width:min(58vw,460px);height:min(60vh,520px);right:-10%}
