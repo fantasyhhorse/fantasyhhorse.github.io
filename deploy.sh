@@ -36,9 +36,10 @@ for arg in "$@"; do
   esac
 done
 
-say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
+# Без ANSI-подсветки: в обычном окне cmd она сыплется мусором вида ^[[1m
+say()  { printf '\n== %s\n' "$*"; }
 info() { printf '   %s\n' "$*"; }
-die()  { printf '\n\033[31m%s\033[0m\n\n' "$*" >&2; exit 1; }
+die()  { printf '\n!! %s\n\n' "$*" >&2; exit 1; }
 
 # ---------- проверки ----------
 [ -f index.html ] || die "index.html рядом не найден — запускайте скрипт из папки сайта."
