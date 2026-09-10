@@ -619,8 +619,10 @@ window.FHh = window.FHh || {};
 
   /* Жест вбок переключает кадр. Вертикаль отдаём странице, иначе
      карточку нельзя было бы прокрутить пальцем по самому снимку;
-     после протяжки гасим клик, чтобы не открылся полный просмотр. */
-  function wireSwipe(box) {
+     после протяжки гасим клик, чтобы не открылся полный просмотр.
+     Лента работ и лента услуги устроены одинаково, поэтому счётчик
+     кадров, шаг и метку протяжки передаём снаружи. */
+  function wireSwipe(box, count, go, mark) {
     if (box.dataset.swipe) return;
     box.dataset.swipe = '1';
     var x0 = 0, y0 = 0, live = false;
@@ -629,17 +631,17 @@ window.FHh = window.FHh || {};
       if (e.button) return;
       // метку протяжки снимаем здесь, а не в клике: если браузер
       // после жеста клик не пришлёт, она бы съела следующее касание
-      sheetSwiped = false;
+      mark(false);
       x0 = e.clientX; y0 = e.clientY; live = true;
     });
     box.addEventListener('pointerup', function (e) {
       if (!live) return;
       live = false;
-      if (sheetNodes.length < 2) return;
+      if (count() < 2) return;
       var dx = e.clientX - x0, dy = e.clientY - y0;
       if (Math.abs(dx) < 42 || Math.abs(dx) < Math.abs(dy) * 1.3) return;
-      sheetSwiped = true;
-      show(sheetAt + (dx < 0 ? 1 : -1));
+      mark(true);
+      go(dx < 0 ? 1 : -1);
     });
     box.addEventListener('pointercancel', function () { live = false; });
   }
@@ -690,6 +692,9 @@ window.FHh = window.FHh || {};
         });
       } else {
         node = document.createElement('img');
+        // без этого браузер начинает свой drag&drop и присылает
+        // pointercancel — протяжка мышью не доживала до конца жеста
+        node.draggable = false;
         var set = function (u) {
           node.src = u;
           if (i === 0) requestAnimationFrame(function () { node.classList.add('is-on'); });
@@ -728,7 +733,10 @@ window.FHh = window.FHh || {};
     });
 
     applyRatio();
-    wireSwipe(wrap);
+    wireSwipe(wrap,
+      function () { return sheetNodes.length; },
+      function (d) { show(sheetAt + d); },
+      function (v) { sheetSwiped = v; });
 
     var bodyEl = $('.sheet__body');
     bodyEl.classList.remove('sheet__stagger');
@@ -834,29 +842,47 @@ window.FHh = window.FHh || {};
         '</div>';
 
       if (refs.length) {
+        /* Кадры услуги живут так же, как кадры работы: все лежат стопкой,
+           видимый помечен is-on. Раньше show() пересобирал <img> заново —
+           из-за этого не получалось ни протяжки, ни плавной смены. */
         var media = $('.svc__media', el);
         var thumbs = $('.svc__thumbs', el);
+        var nodes = [];
+        var at = 0;
+        var swiped = false;
+
         var show = function (i) {
-          var ref = refs[i];
+          var n = nodes.length; if (!n) return;
+          at = ((i % n) + n) % n;
+          nodes.forEach(function (x, k) {
+            x.classList.toggle('is-on', k === at);
+            if (k !== at && x.pause) x.pause();
+          });
+          $$('button', thumbs).forEach(function (b, k) { b.classList.toggle('is-on', k === at); });
+        };
+
+        refs.forEach(function (ref, i) {
           var isVideo = S.mediaKind(ref) === 'video';
-          media.innerHTML = '';
           var node = document.createElement(isVideo ? 'video' : 'img');
           if (isVideo) {
             node.muted = true; node.loop = true; node.playsInline = true;
             node.setAttribute('playsinline', ''); node.controls = true;
-          } else { node.alt = esc(sv.title); node.loading = 'lazy'; }
+            node.preload = 'metadata';
+          } else { node.alt = sv.title; node.loading = 'lazy'; node.draggable = false; }
           S.resolveMedia(ref).then(function (u) {
             if (u) node.src = u + (isVideo ? '#t=0.1' : '');
           });
-          if (!isVideo) node.addEventListener('click', function () { openViewer(node); });
+          // клик по кадру — тот же полноэкранный просмотр, что и у работ
+          if (!isVideo) node.addEventListener('click', function () {
+            if (swiped) return;                          // это была протяжка
+            if (node.classList.contains('is-on')) openViewer(node);
+          });
+          nodes.push(node);
           media.appendChild(node);
-          $$('button', thumbs).forEach(function (b, k) { b.classList.toggle('is-on', k === i); });
-        };
-        if (refs.length > 1) {
-          refs.forEach(function (ref, i) {
+
+          if (refs.length > 1) {
             var b = document.createElement('button');
             b.setAttribute('aria-label', 'кадр ' + (i + 1));
-            var isVideo = S.mediaKind(ref) === 'video';
             var ti = document.createElement(isVideo ? 'video' : 'img');
             if (isVideo) { ti.muted = true; ti.preload = 'metadata'; }
             S.resolveMedia(ref).then(function (u) {
@@ -865,9 +891,14 @@ window.FHh = window.FHh || {};
             b.appendChild(ti);
             b.addEventListener('click', function () { show(i); });
             thumbs.appendChild(b);
-          });
-        }
+          }
+        });
+
         show(0);
+        wireSwipe(media,
+          function () { return nodes.length; },
+          function (d) { show(at + d); },
+          function (v) { swiped = v; });
       } else {
         // без фотографии колонка слева пустовала — кладём ту же
         // сгенерированную ботанику, что и у работ без снимков
@@ -912,6 +943,11 @@ window.FHh = window.FHh || {};
   }
   function touchLayout() {
     return window.matchMedia && window.matchMedia('(max-width: 820px)').matches;
+  }
+
+  /* раскладка — про ширину окна, а это про то, чем по экрану водят */
+  function coarsePointer() {
+    return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   }
 
   function stopDrift() {
@@ -1227,8 +1263,10 @@ window.FHh = window.FHh || {};
     if (!isVideo) {
       var hint = document.createElement('p');
       hint.className = 'drift__zoomhint';
-      hint.textContent = touchLayout() ? 'двойное касание или щипок — приблизить'
-                                       : 'двойной клик — приблизить';
+      // подсказка идёт по устройству ввода, а не по ширине окна: в узком
+      // окне на десктопе мышью щипок не сделать, а двойной клик работает
+      hint.textContent = coarsePointer() ? 'двойное касание или щипок — приблизить'
+                                         : 'двойной клик — приблизить';
       viewerEl.appendChild(hint);
       wireZoom(viewerEl, big);
     }
@@ -1268,6 +1306,9 @@ window.FHh = window.FHh || {};
     }
     function reset() { scale = 1; tx = 0; ty = 0; paint(); }
 
+    function grab(x, y) { startX = x; startY = y; panX = tx; panY = ty; }
+    function toggle() { scale = scale > 1.02 ? 1 : 2.4; tx = ty = 0; paint(); }
+
     box.addEventListener('pointerdown', function (e) {
       pts[e.pointerId] = { x: e.clientX, y: e.clientY };
       var ids = Object.keys(pts);
@@ -1276,10 +1317,16 @@ window.FHh = window.FHh || {};
         startDist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
         startScale = scale;
       } else if (ids.length === 1) {
-        startX = e.clientX; startY = e.clientY; panX = tx; panY = ty;
-        var now = Date.now();
-        if (now - lastTap < 320) { scale = scale > 1.02 ? 1 : 2.4; tx = ty = 0; paint(); }
-        lastTap = now;
+        grab(e.clientX, e.clientY);
+        // двойное касание считаем сами, но только для пальца: мышь
+        // присылает ещё и dblclick, и приближение тут же откатывалось
+        if (e.pointerType === 'touch') {
+          var now = Date.now();
+          // после срабатывания счётчик обнуляем: иначе третье касание
+          // подряд снова читалось бы как двойное и гасило приближение
+          if (now - lastTap < 320) { toggle(); lastTap = 0; }
+          else lastTap = now;
+        }
       }
       box.classList.add('is-panning');
       try { box.setPointerCapture(e.pointerId); } catch (err) {}
@@ -1303,11 +1350,15 @@ window.FHh = window.FHh || {};
 
     function up(e) {
       delete pts[e.pointerId];
-      if (!Object.keys(pts).length) box.classList.remove('is-panning');
+      var rest = Object.keys(pts);
+      // палец, оставшийся после щипка, продолжает таскать кадр — но от
+      // своего места, иначе снимок прыгнул бы к точке начала жеста
+      if (rest.length === 1) grab(pts[rest[0]].x, pts[rest[0]].y);
+      if (!rest.length) box.classList.remove('is-panning');
     }
     box.addEventListener('pointerup', up);
     box.addEventListener('pointercancel', up);
-    box.addEventListener('dblclick', function () { scale = scale > 1.02 ? 1 : 2.4; tx = ty = 0; paint(); });
+    box.addEventListener('dblclick', toggle);
     box.addEventListener('wheel', function (e) {
       e.preventDefault();
       scale = Math.max(1, Math.min(4, scale * (e.deltaY < 0 ? 1.12 : 0.89)));
