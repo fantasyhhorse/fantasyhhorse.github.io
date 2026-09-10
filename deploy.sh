@@ -59,7 +59,8 @@ if [ "$DO_MEDIA" = "1" ] && [ -f tools/optimize-media.py ]; then
   for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && { PY="$c"; break; }; done
   if [ -n "$PY" ] && "$PY" -c "import PIL" >/dev/null 2>&1; then
     say "Облегчённые копии картинок"
-    "$PY" tools/optimize-media.py || die "Не удалось собрать копии картинок."
+    # PYTHONIOENCODING — иначе в консоли Windows русские строки сыплются кракозябрами
+    PYTHONIOENCODING=utf-8 "$PY" tools/optimize-media.py || die "Не удалось собрать копии картинок."
   else
     info "Pillow не найден — копии не пересобираю (сайт возьмёт оригиналы)."
     info "Поставить: python -m pip install pillow"
