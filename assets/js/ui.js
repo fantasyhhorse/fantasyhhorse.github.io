@@ -221,13 +221,18 @@ window.FHh = window.FHh || {};
     el.insertBefore(i, el.firstChild);
   }
 
-  /* маскот и печать: одни и те же пути, разные размеры и роли */
+  /* Маскот целиком — 298x369: почти половину высоты занимают скрещённые
+     палки. В метке шапки (52px) и в подвале (20px) от них остаётся каша,
+     поэтому туда идёт одна голова — та же, что в иконке вкладки. Полный
+     маскот остаётся там, где он крупный: в прелоадере и на пустой витрине. */
   function paintMarks() {
     if (!BR) return;
-    var mascot = BR.mascotSVG();
-    ['#navMark', '#preMark', '#footMark'].forEach(function (sel) {
-      var el = $(sel); if (el) el.innerHTML = mascot;
+    var head = BR.headSVG ? BR.headSVG() : BR.mascotSVG();
+    ['#navMark', '#footMark'].forEach(function (sel) {
+      var el = $(sel); if (el) el.innerHTML = head;
     });
+    var pre = $('#preMark');
+    if (pre) pre.innerHTML = BR.mascotSVG();
   }
 
   function plural(n, a, b, c) {

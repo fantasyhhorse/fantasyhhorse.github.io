@@ -431,7 +431,16 @@ body[data-phase="live"] .hero__foot{opacity:1}
   font-size:calc(16px * var(--fs));letter-spacing:-.005em;
   text-transform:lowercase;margin:0 0 .7em}
 .blk__links{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
-.prose ul{padding-left:1.1em;margin:0 0 1.15em}
+.prose ul,.prose ol{padding-left:1.1em;margin:0 0 1.15em}
+.prose li{margin-bottom:.3em}
+/* выделение внутри абзаца: жирное и маркер берут основной цвет чернил —
+   иначе выделенное тонуло бы в приглушённом цвете текста */
+.prose strong,.prose b{font-weight:600;color:var(--ink)}
+.prose mark{background:color-mix(in srgb,var(--accent) 20%,transparent);
+  color:var(--ink);padding:0 .22em}
+.prose hr{border:0;border-top:1px solid var(--line);margin:1.6em 0}
+.prose blockquote{margin:0 0 1.15em;padding-left:1em;
+  border-left:2px solid var(--accent);color:var(--ink)}
 
 /* ---- услуги: широкие строки с фото, ценой и слотами ---- */
 .services__lead{max-width:70ch;margin:0 var(--gut) clamp(18px,3vw,34px)}
