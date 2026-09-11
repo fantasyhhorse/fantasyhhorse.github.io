@@ -263,6 +263,10 @@ body[data-phase="live"] .hero__foot{opacity:1}
 .cta--fill::before{background:var(--accent)}
 .cta--fill:hover{border-color:var(--accent)}
 .cta[disabled]{opacity:.4;pointer-events:none}
+/* кнопка внутри раздела: та же кнопка, только компактнее — их в ряду
+   может быть несколько, и полноразмерные разбивали бы колонку */
+.cta--sm{padding:11px 18px;min-height:40px;font-size:calc(11px * var(--fs))}
+.cta--sm svg{width:13px;height:13px}
 
 /* ============ ЦВЕТНОЙ БЛОК-МАНИФЕСТ ============ */
 .band{position:relative;overflow:hidden;background:var(--band-bg);color:var(--on-band);
@@ -412,12 +416,21 @@ body[data-phase="live"] .hero__foot{opacity:1}
    начинается ниже сгиба и её приходится доскролливать */
 .view[data-view="about"] .head{padding-top:clamp(92px,10vw,124px);
   padding-bottom:clamp(12px,1.6vw,20px)}
-.view--text>.prose,.view--text>.cta{margin-left:var(--gut);margin-right:var(--gut)}
+.view--text>.prose,.view--text>.cta,.view--text>.blocks{margin-left:var(--gut);margin-right:var(--gut)}
+/* главная кнопка страницы не должна прилипать к кнопке последнего раздела */
+.view--text>.blocks+.cta{margin-top:clamp(26px,3.4vw,40px)}
 .prose{max-width:62ch;color:var(--ink-soft);font-size:calc(15.5px * var(--fs))}
 .prose p{margin:0 0 1.15em}
 .prose h3{font-family:var(--f-display);font-weight:600;color:var(--ink);
   font-size:calc(18px * var(--fs));letter-spacing:0;margin:2em 0 .6em;text-transform:lowercase}
 .prose a{color:var(--accent);border-bottom:1px solid var(--line)}
+/* ---- разделы страниц «контакты» и «о мастере» ---- */
+.blocks:empty{display:none}
+.blk{margin-top:clamp(26px,3.4vw,40px)}
+.blk__title{font-family:var(--f-display);font-weight:600;color:var(--ink);
+  font-size:calc(16px * var(--fs));letter-spacing:-.005em;
+  text-transform:lowercase;margin:0 0 .7em}
+.blk__links{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
 .prose ul{padding-left:1.1em;margin:0 0 1.15em}
 
 /* ---- услуги: широкие строки с фото, ценой и слотами ---- */
@@ -818,6 +831,33 @@ body.is-gsheet{overflow:hidden}
 .field textarea{min-height:120px;resize:vertical;line-height:1.6}
 .field input[type=range]{width:100%;accent-color:var(--accent)}
 .field input[type=color]{width:100%;height:40px;border:1px solid var(--line);background:none;padding:3px}
+/* ---- конструктор разделов страницы (вкладка «Тексты») ---- */
+.blocksed{margin:0 0 18px}
+.blkrow{border:1px solid var(--line);padding:12px;margin-bottom:10px;
+  background:var(--paper-2)}
+.blkrow__top{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.blkrow__top input{flex:1;min-width:0}
+.blkrow input[type=text],.blkrow textarea{
+  width:100%;padding:10px 11px;border:1px solid var(--line);
+  background:var(--paper);color:var(--ink);font:inherit;
+  font-size:calc(13px * var(--fs));outline:none;transition:border-color .3s}
+.blkrow input:focus,.blkrow textarea:focus{border-color:var(--accent)}
+.blkrow textarea{min-height:84px;resize:vertical;line-height:1.6}
+.linkrows{margin-top:8px}
+.linkrow{display:flex;gap:6px;align-items:center;margin-top:6px}
+.linkrow input{flex:1;min-width:0}
+.mini{font-family:var(--f-mono);font-size:calc(11px * var(--fs));
+  letter-spacing:var(--mono-track);padding:9px 12px;flex:none;
+  border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);
+  transition:border-color .3s,color .3s,background .3s}
+.mini:hover:not([disabled]){border-color:var(--accent);color:var(--ink)}
+.mini[disabled]{opacity:.35;pointer-events:none}
+.mini--wide{display:block;width:100%;margin-top:8px;text-align:center}
+@media (max-width:560px){
+  .linkrow{flex-wrap:wrap}
+  .linkrow input{flex:1 1 100%}
+}
+
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0 14px}
 .cols--spec{grid-template-columns:1fr 1fr auto;align-items:end}
 .editor{max-width:960px}

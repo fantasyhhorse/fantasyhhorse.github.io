@@ -89,21 +89,37 @@ window.FHh = window.FHh || {};
         'обсуждаем породу, масть, гриву, амуницию и сроки в Telegram.</p>',
       footerNote: '© FHh · Рина Киприянова',
       currency: '₽',
+      /* Вступление страницы. Всё, что идёт разделами с заголовком, живёт
+         в aboutBlocks / contactsBlocks: у раздела есть свои кнопки-ссылки,
+         а заголовки больше не приходится размечать руками в HTML. */
       aboutText:
         '<p>Меня зовут Рина Киприянова. Я делаю вещи руками: хоббихорсов и амуницию для них, витражи, ' +
         'мягкие игрушки и крафтовые предметы для дома.</p>' +
         '<p>Каждая работа существует в одном экземпляре. Я не повторяю модели: даже если основа похожа, ' +
-        'характер, цвет и фурнитура собираются заново под конкретную лошадь или конкретного человека.</p>' +
-        '<h3>Как это работает</h3>' +
-        '<p>Готовые работы из витрины можно забрать сразу. Всё остальное — под заказ: обсуждаем ' +
-        'породу, масть, гриву, амуницию и сроки в Telegram.</p>',
+        'характер, цвет и фурнитура собираются заново под конкретную лошадь или конкретного человека.</p>',
+      aboutBlocks: [
+        {
+          id: 'ab1', title: 'Как это работает',
+          text: '<p>Готовые работы из витрины можно забрать сразу. Всё остальное — под заказ: обсуждаем ' +
+                'породу, масть, гриву, амуницию и сроки в Telegram.</p>',
+          links: []
+        }
+      ],
       contactsText:
-        '<p>Все вопросы, заказы и предзаказы — в Telegram. Отвечаю в течение дня.</p>' +
-        '<h3>Доставка</h3>' +
-        '<p>СДЭК и Почта России по России, отправка в течение 1–3 дней после оплаты. ' +
-        'Самовывоз обсуждается отдельно.</p>' +
-        '<h3>Оплата</h3>' +
-        '<p>Перевод по номеру телефона. Работы под заказ — предоплата 50%.</p>',
+        '<p>Все вопросы, заказы и предзаказы — в Telegram. Отвечаю в течение дня.</p>',
+      contactsBlocks: [
+        {
+          id: 'cb1', title: 'Доставка',
+          text: '<p>СДЭК и Почта России по России, отправка в течение 1–3 дней после оплаты. ' +
+                'Самовывоз обсуждается отдельно.</p>',
+          links: []
+        },
+        {
+          id: 'cb2', title: 'Оплата',
+          text: '<p>Перевод по номеру телефона. Работы под заказ — предоплата 50%.</p>',
+          links: []
+        }
+      ],
 
       /* оформление: палитра */
       paper: '#eedbb3',
@@ -333,9 +349,34 @@ window.FHh = window.FHh || {};
     return site;
   }
 
+  /* Разделы страниц раньше были просто <h3> внутри одного поля. Чтобы
+     опубликованный текст не пропал и сразу стал редактируемым, при первом
+     открытии режем его по заголовкам: то, что до первого <h3>, остаётся
+     вступлением, дальше — разделы. Повторно не срабатывает: ключ уже есть. */
+  function splitSections(st) {
+    ['about', 'contacts'].forEach(function (page) {
+      var tk = page + 'Text', bk = page + 'Blocks';
+      if (Array.isArray(st[bk])) return;
+      var parts = String(st[tk] || '').split(/<h3[^>]*>/i);
+      st[tk] = (parts.shift() || '').trim();
+      st[bk] = parts.map(function (chunk) {
+        var cut = chunk.split(/<\/h3>/i);
+        var head = cut.shift() || '';
+        return {
+          id: uid(),
+          title: head.replace(/<[^>]+>/g, '').trim(),
+          text: cut.join('').trim(),
+          links: []
+        };
+      });
+    });
+  }
+
   function normalize(site) {
     migrate(site);
-    site.settings = deepFill(site.settings || {}, DEFAULTS.settings);
+    site.settings = site.settings || {};
+    splitSections(site.settings);
+    site.settings = deepFill(site.settings, DEFAULTS.settings);
     if (!Array.isArray(site.items)) site.items = clone(DEFAULTS.items);
     if (!Array.isArray(site.categories)) site.categories = clone(DEFAULTS.categories);
     if (!Array.isArray(site.groups) || !site.groups.length) site.groups = clone(DEFAULTS.groups);
@@ -343,6 +384,13 @@ window.FHh = window.FHh || {};
     if (!Array.isArray(site.services)) site.services = clone(DEFAULTS.services);
     if (!site.mediaPub || typeof site.mediaPub !== 'object') site.mediaPub = {};
     if (!Array.isArray(site.settings.aboutPhotos)) site.settings.aboutPhotos = MASTER_PHOTOS.slice();
+    ['aboutBlocks', 'contactsBlocks'].forEach(function (k) {
+      if (!Array.isArray(site.settings[k])) site.settings[k] = [];
+      site.settings[k].forEach(function (b) {
+        if (!b.id) b.id = uid();
+        if (!Array.isArray(b.links)) b.links = [];
+      });
+    });
     return site;
   }
 

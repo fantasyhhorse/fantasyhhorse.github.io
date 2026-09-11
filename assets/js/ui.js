@@ -104,10 +104,71 @@ window.FHh = window.FHh || {};
     var tg = tgLink();
     $$('#tgTop, #tgContacts, #tgFoot').forEach(function (a) { a.href = tg; });
 
+    renderBlocks($('#aboutBlocks'), st.aboutBlocks);
+    renderBlocks($('#contactsBlocks'), st.contactsBlocks);
+
     var n = S.state.items.filter(function (i) { return !i.hidden; }).length;
     $('#heroCount').textContent = n + ' ' + plural(n, 'работа', 'работы', 'работ') + ' в витрине';
 
     paintMarks();
+  }
+
+  /* ---------------- разделы страниц ----------------
+     «Контакты» и «о мастере» собираются из разделов: заголовок, текст и
+     свои кнопки-ссылки. Раньше заголовки размечались вручную внутри
+     одного HTML-поля, и кнопку к разделу было не приставить. */
+  function blockURL(u) {
+    u = String(u || '').trim();
+    if (!u) return '';
+    // без схемы браузер посчитал бы адрес относительным путём сайта
+    if (/^(https?:|mailto:|tel:|tg:|#|\/|\.)/i.test(u)) return u;
+    return 'https://' + u;
+  }
+
+  var ARROW = '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M4 12h16m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+
+  function renderBlocks(host, list) {
+    if (!host) return;
+    host.innerHTML = '';
+    (list || []).forEach(function (b) {
+      if (!b) return;
+      var sec = document.createElement('section');
+      sec.className = 'blk';
+
+      if (b.title) {
+        var h = document.createElement('h3');
+        h.className = 'blk__title';
+        h.textContent = b.title;
+        sec.appendChild(h);
+      }
+      if (b.text) {
+        var body = document.createElement('div');
+        body.className = 'prose';
+        body.innerHTML = b.text;
+        sec.appendChild(body);
+      }
+
+      var links = (b.links || []).filter(function (l) { return l && (l.label || l.url); });
+      if (links.length) {
+        var box = document.createElement('div');
+        box.className = 'blk__links';
+        links.forEach(function (l) {
+          var href = blockURL(l.url);
+          var a = document.createElement('a');
+          a.className = 'cta cta--sm';
+          a.href = href || '#';
+          if (href && href.charAt(0) !== '#') { a.target = '_blank'; a.rel = 'noopener'; }
+          var sp = document.createElement('span');
+          sp.textContent = l.label || l.url;
+          a.appendChild(sp);
+          a.insertAdjacentHTML('beforeend', ARROW);
+          box.appendChild(a);
+        });
+        sec.appendChild(box);
+      }
+      host.appendChild(sec);
+    });
   }
 
   /* ---------------- акцентный шрифт ----------------

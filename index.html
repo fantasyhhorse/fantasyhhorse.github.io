@@ -147,6 +147,8 @@
   <div class="about">
     <div class="about__col">
       <div class="prose" data-bind-html="aboutText"></div>
+      <!-- разделы со своими кнопками собираются в панели управления -->
+      <div class="blocks" id="aboutBlocks"></div>
     </div>
     <!-- снимки плавают сами по себе; от того, на который навели курсор,
          соседи разбегаются. На телефоне тап разворачивает кадр по центру -->
@@ -158,6 +160,7 @@
 <section class="view view--text" data-view="contacts">
   <div class="head"><h2 class="head__title">контакты<em>.</em></h2></div>
   <div class="prose" data-bind-html="contactsText"></div>
+  <div class="blocks" id="contactsBlocks"></div>
   <a class="cta" id="tgContacts" href="#" target="_blank" rel="noopener">
     <span>написать в telegram</span>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>

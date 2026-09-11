@@ -1038,20 +1038,103 @@ window.FHh = window.FHh || {};
       field('Крупная строка', area('bandLead', st.bandLead)) +
       field('Текст блока (HTML)', area('bandText', st.bandText)) +
       '<h4>Страница «Услуги»</h4>' + field('Вступление (HTML)', area('servicesLead', st.servicesLead)) +
-      '<h4>Страница «О мастере»</h4>' + field('HTML', area('aboutText', st.aboutText)) +
-      '<h4>Страница «Контакты»</h4>' + field('HTML', area('contactsText', st.contactsText)) +
+      '<h4>Страница «О мастере»</h4>' +
+      field('Вступление (HTML)', area('aboutText', st.aboutText)) +
+      blocksEditor('about', st.aboutBlocks) +
+      '<h4>Страница «Контакты»</h4>' +
+      field('Вступление (HTML)', area('contactsText', st.contactsText)) +
+      blocksEditor('contacts', st.contactsBlocks) +
       '<h4>Подвал</h4>' + field('Строка в футере', input('footerNote', st.footerNote)) +
       '</div>';
   }
 
+  /* Разделы страницы: заголовок, текст и свои кнопки-ссылки. Раньше
+     заголовки приходилось размечать <h3> прямо в HTML-поле, и кнопку
+     к разделу было не приставить — теперь это отдельная сущность. */
+  function blocksEditor(page, list) {
+    list = list || [];
+    var rows = list.map(function (b, i) {
+      var links = (b.links || []).map(function (l, j) {
+        return '<div class="linkrow" data-l="' + j + '">' +
+          '<input type="text" data-lk="label" placeholder="надпись на кнопке" value="' + esc(l.label) + '">' +
+          '<input type="text" data-lk="url" placeholder="ссылка" value="' + esc(l.url) + '">' +
+          '<button class="mini" data-act="ldel" title="Убрать кнопку">×</button>' +
+        '</div>';
+      }).join('');
+
+      return '<div class="blkrow" data-b="' + i + '">' +
+        '<div class="blkrow__top">' +
+          '<input type="text" data-bk="title" placeholder="заголовок раздела" value="' + esc(b.title) + '">' +
+          '<button class="mini" data-act="bup" title="Выше"' + (i ? '' : ' disabled') + '>↑</button>' +
+          '<button class="mini" data-act="bdown" title="Ниже"' + (i < list.length - 1 ? '' : ' disabled') + '>↓</button>' +
+          '<button class="mini" data-act="bdel" title="Удалить раздел">×</button>' +
+        '</div>' +
+        '<textarea data-bk="text" placeholder="текст раздела (HTML)">' + esc(b.text) + '</textarea>' +
+        '<div class="linkrows">' + links + '</div>' +
+        '<button class="mini mini--wide" data-act="ladd">+ кнопка со ссылкой</button>' +
+      '</div>';
+    }).join('');
+
+    return '<div class="blocksed" data-page="' + page + '">' + rows +
+      '<button class="mini mini--wide" data-act="badd">+ раздел</button>' +
+      '<p class="hint">Кнопка рисуется как «написать в telegram». Ссылка — ' +
+      'полный адрес (t.me/…, https://…), «mailto:», «tel:» или якорь вида #/services.</p>' +
+      '</div>';
+  }
+
   function afterText() {
-    $('#adminBody').oninput = function (e) {
-      var k = e.target.dataset.k; if (!k) return;
-      S.state.settings[k] = e.target.value;
+    var body = $('#adminBody');
+
+    /* какой раздел и какая кнопка под курсором */
+    function ctx(el) {
+      var ed = el.closest('.blocksed');
+      if (!ed) return null;
+      var list = S.state.settings[ed.dataset.page + 'Blocks'];
+      var row = el.closest('.blkrow');
+      var b = row ? list[+row.dataset.b] : null;
+      var lr = el.closest('.linkrow');
+      return { list: list, b: b, i: row ? +row.dataset.b : -1, j: lr ? +lr.dataset.l : -1 };
+    }
+
+    body.oninput = function (e) {
+      var t = e.target;
+
+      if (t.dataset.bk || t.dataset.lk) {
+        var c = ctx(t);
+        if (!c || !c.b) return;
+        if (t.dataset.lk) c.b.links[c.j][t.dataset.lk] = t.value;
+        else c.b[t.dataset.bk] = t.value;
+        NS.ui.applySettings();
+        touch();
+        return;
+      }
+
+      var k = t.dataset.k; if (!k) return;
+      S.state.settings[k] = t.value;
       NS.ui.applySettings();
       touch();
     };
-    $('#adminBody').onchange = $('#adminBody').oninput;
+    body.onchange = body.oninput;
+
+    body.onclick = function (e) {
+      var btn = e.target.closest('button[data-act]');
+      if (!btn) return;
+      var c = ctx(btn);
+      if (!c) return;
+      var act = btn.dataset.act;
+
+      if (act === 'badd') c.list.push({ id: S.uid(), title: '', text: '', links: [] });
+      else if (act === 'bdel') c.list.splice(c.i, 1);
+      else if (act === 'bup') c.list.splice(c.i - 1, 0, c.list.splice(c.i, 1)[0]);
+      else if (act === 'bdown') c.list.splice(c.i + 1, 0, c.list.splice(c.i, 1)[0]);
+      else if (act === 'ladd') c.b.links.push({ id: S.uid(), label: '', url: '' });
+      else if (act === 'ldel') c.b.links.splice(c.j, 1);
+      else return;
+
+      touch();
+      NS.ui.applySettings();
+      render();                     // перерисовываем: сдвинулись индексы
+    };
   }
 
   /* ============================================================
